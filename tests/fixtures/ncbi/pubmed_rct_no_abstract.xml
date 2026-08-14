@@ -1,0 +1,36 @@
+<?xml version="1.0"?>
+<PubmedArticleSet>
+  <PubmedArticle>
+    <MedlineCitation Status="MEDLINE" Owner="NLM">
+      <PMID Version="1">2003</PMID>
+      <Article PubModel="Electronic">
+        <Journal>
+          <JournalIssue CitedMedium="Internet">
+            <PubDate>
+              <Year>2024</Year>
+            </PubDate>
+          </JournalIssue>
+          <Title>British Journal of Sports Medicine</Title>
+        </Journal>
+        <ArticleTitle>RCT of resistance training.</ArticleTitle>
+        <AuthorList CompleteYN="Y">
+          <Author ValidYN="Y">
+            <CollectiveName>SPORTS Group</CollectiveName>
+          </Author>
+        </AuthorList>
+        <PublicationTypeList>
+          <PublicationType>Randomized Controlled Trial</PublicationType>
+          <PublicationType>Review</PublicationType>
+          <PublicationType>Journal Article</PublicationType>
+        </PublicationTypeList>
+        <ELocationID EIdType="doi" ValidYN="Y">10.1136/rct.1</ELocationID>
+      </Article>
+    </MedlineCitation>
+    <PubmedData>
+      <PublicationStatus>epublish</PublicationStatus>
+      <ArticleIdList>
+        <ArticleId IdType="pubmed">2003</ArticleId>
+      </ArticleIdList>
+    </PubmedData>
+  </PubmedArticle>
+</PubmedArticleSet>

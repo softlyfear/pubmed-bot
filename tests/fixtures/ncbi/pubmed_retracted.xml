@@ -1,0 +1,47 @@
+<?xml version="1.0"?>
+<PubmedArticleSet>
+  <PubmedArticle>
+    <MedlineCitation Status="MEDLINE" Owner="NLM">
+      <PMID Version="1">2002</PMID>
+      <Article PubModel="Print">
+        <Journal>
+          <JournalIssue CitedMedium="Print">
+            <PubDate>
+              <Year>2023</Year>
+              <Month>01</Month>
+            </PubDate>
+          </JournalIssue>
+          <Title>The Lancet</Title>
+        </Journal>
+        <ArticleTitle>Retracted sports medicine paper.</ArticleTitle>
+        <Abstract>
+          <AbstractText>This paper was later retracted.</AbstractText>
+        </Abstract>
+        <AuthorList CompleteYN="Y">
+          <Author ValidYN="Y">
+            <LastName>Rogue</LastName>
+            <Initials>A</Initials>
+          </Author>
+        </AuthorList>
+        <PublicationTypeList>
+          <PublicationType>Retracted Publication</PublicationType>
+          <PublicationType>Journal Article</PublicationType>
+        </PublicationTypeList>
+        <CommentsCorrectionsList>
+          <CommentsCorrections RefType="RetractionIn">
+            <RefSource>Lancet. 2024;1:1</RefSource>
+            <PMID Version="1">9999</PMID>
+          </CommentsCorrections>
+        </CommentsCorrectionsList>
+      </Article>
+    </MedlineCitation>
+    <PubmedData>
+      <PublicationStatus>ppublish</PublicationStatus>
+      <ArticleIdList>
+        <ArticleId IdType="pubmed">2002</ArticleId>
+        <ArticleId IdType="doi">https://doi.org/10.1000/retracted</ArticleId>
+        <ArticleId IdType="pmc">PMC555.1</ArticleId>
+      </ArticleIdList>
+    </PubmedData>
+  </PubmedArticle>
+</PubmedArticleSet>

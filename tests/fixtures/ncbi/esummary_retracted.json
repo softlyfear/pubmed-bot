@@ -1,0 +1,13 @@
+{
+  "result": {
+    "uids": ["1002"],
+    "1002": {
+      "uid": "1002",
+      "title": "Retracted sports medicine paper.",
+      "pubdate": "2023 Jan 12",
+      "pubstatus": "4",
+      "pubtype": ["Retracted Publication", "Journal Article"],
+      "source": "Lancet"
+    }
+  }
+}

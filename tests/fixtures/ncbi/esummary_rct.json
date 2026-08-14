@@ -1,0 +1,13 @@
+{
+  "result": {
+    "uids": ["1003"],
+    "1003": {
+      "uid": "1003",
+      "title": "RCT of resistance training.",
+      "pubdate": "2024",
+      "pubstatus": "3",
+      "pubtype": ["Randomized Controlled Trial", "Journal Article"],
+      "source": "BJSM"
+    }
+  }
+}

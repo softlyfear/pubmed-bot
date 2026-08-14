@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<!DOCTYPE pmc-articleset PUBLIC "-//NLM//DTD ARTICLE SET 2.0//EN" "https://dtd.nlm.nih.gov/ncbi/pmc/articleset/nlm-articleset-2.0.dtd">
+<pmc-articleset>
+  <article article-type="research-article" xml:lang="en">
+    <front>
+      <article-meta>
+        <article-id pub-id-type="pmcid">PMC555</article-id>
+      </article-meta>
+    </front>
+    <body>
+      <sec>
+        <title>Introduction</title>
+        <p>First paragraph with <italic>emphasis</italic> and a citation <xref ref-type="bibr">1</xref>.</p>
+        <fig id="f1">
+          <caption><p>Figure caption must be dropped.</p></caption>
+          <graphic/>
+        </fig>
+        <p>Second paragraph after the figure.</p>
+        <table-wrap id="t1">
+          <caption><p>Table caption must be dropped.</p></caption>
+          <table>
+            <tr><td>cell</td></tr>
+          </table>
+        </table-wrap>
+        <p>Third paragraph after the table.</p>
+      </sec>
+    </body>
+  </article>
+</pmc-articleset>

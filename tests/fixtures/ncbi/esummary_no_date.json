@@ -1,0 +1,13 @@
+{
+  "result": {
+    "uids": ["1004"],
+    "1004": {
+      "uid": "1004",
+      "title": "Paper without a publication date.",
+      "pubdate": "",
+      "pubstatus": "8",
+      "pubtype": ["Journal Article"],
+      "source": "Unknown"
+    }
+  }
+}
