@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<PubmedArticleSet>
+  <PubmedArticle>
+    <MedlineCitation Status="MEDLINE" Owner="NLM">
+      <PMID Version="1">2004</PMID>
+      <Article PubModel="Print">
+        <Journal>
+          <JournalIssue CitedMedium="Print">
+            <PubDate>
+              <MedlineDate>unknown season</MedlineDate>
+            </PubDate>
+          </JournalIssue>
+          <Title>Obscure Journal</Title>
+        </Journal>
+        <ArticleTitle>Paper without a publication date.</ArticleTitle>
+        <Abstract>
+          <AbstractText>Plain unstructured abstract.</AbstractText>
+        </Abstract>
+        <PublicationTypeList>
+          <PublicationType>Journal Article</PublicationType>
+        </PublicationTypeList>
+      </Article>
+    </MedlineCitation>
+    <PubmedData>
+      <PublicationStatus>pubmed</PublicationStatus>
+      <ArticleIdList>
+        <ArticleId IdType="pubmed">2004</ArticleId>
+      </ArticleIdList>
+    </PubmedData>
+  </PubmedArticle>
+</PubmedArticleSet>

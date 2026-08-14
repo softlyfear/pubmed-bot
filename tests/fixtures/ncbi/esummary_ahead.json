@@ -1,0 +1,13 @@
+{
+  "result": {
+    "uids": ["1001"],
+    "1001": {
+      "uid": "1001",
+      "title": "Ahead of print exercise trial.",
+      "pubdate": "2024 Mar",
+      "pubstatus": "10",
+      "pubtype": ["Journal Article"],
+      "source": "Sports Med"
+    }
+  }
+}
