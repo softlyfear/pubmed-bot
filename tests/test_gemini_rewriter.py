@@ -1,4 +1,4 @@
-"""Адаптер OpenAI Chat Completions: prompt, timeout, пост-обработка. Без живого API."""
+"""Адаптер Gemini: prompt, timeout, пост-обработка. Без живого API."""
 
 from collections.abc import Callable
 from pathlib import Path
@@ -8,12 +8,13 @@ import httpx
 import pytest
 from openai import APITimeoutError, OpenAIError
 
-from pubmed_bot.adapters.llm.openai_rewriter import (
-    OPENAI_MAX_TOKENS,
-    OPENAI_TEMPERATURE,
-    OPENAI_TIMEOUT_SECONDS,
+from pubmed_bot.adapters.llm.gemini_rewriter import (
+    GEMINI_BASE_URL,
+    GEMINI_MAX_TOKENS,
+    GEMINI_TEMPERATURE,
+    GEMINI_TIMEOUT_SECONDS,
     SYSTEM_PROMPT,
-    OpenAIQueryRewriter,
+    GeminiQueryRewriter,
     postprocess_rewrite,
     user_message,
 )
@@ -28,7 +29,7 @@ def _settings() -> Settings:
         ncbi_email="dev@example.com",
         ncbi_tool="pubmed-bot",
         deepl_auth_key="d",
-        openai_api_key="sk-test",
+        gemini_api_key="gemini-test",
         sqlite_path=Path("x.db"),
         _env_file=None,
     )
@@ -83,14 +84,14 @@ def test_postprocess_fence_quotes_first_line() -> None:
 @pytest.mark.asyncio
 async def test_rewrite_sends_prompt_temperature_and_tokens() -> None:
     completions = FakeCompletions()
-    rewriter = OpenAIQueryRewriter(_settings(), FakeOpenAIClient(completions))
+    rewriter = GeminiQueryRewriter(_settings(), FakeOpenAIClient(completions))
     result = await rewriter.rewrite("рост ягодиц", "buttock growth")
     assert result == "gluteal hypertrophy"
     assert len(completions.calls) == 1
     call = completions.calls[0]
-    assert call["model"] == "gpt-4o-mini"
-    assert call["temperature"] == OPENAI_TEMPERATURE
-    assert call["max_tokens"] == OPENAI_MAX_TOKENS
+    assert call["model"] == "gemini-3.5-flash-lite"
+    assert call["temperature"] == GEMINI_TEMPERATURE
+    assert call["max_tokens"] == GEMINI_MAX_TOKENS
     messages = call["messages"]
     assert isinstance(messages, list)
     assert messages[0] == {"role": "system", "content": SYSTEM_PROMPT}
@@ -104,9 +105,11 @@ async def test_rewrite_sends_prompt_temperature_and_tokens() -> None:
 async def test_rewrite_timeout_maps_to_unavailable() -> None:
     completions = FakeCompletions()
     completions.error = APITimeoutError(
-        httpx.Request("GET", "https://api.openai.com/v1/chat/completions")
+        httpx.Request(
+            "GET", "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+        )
     )
-    rewriter = OpenAIQueryRewriter(_settings(), FakeOpenAIClient(completions))
+    rewriter = GeminiQueryRewriter(_settings(), FakeOpenAIClient(completions))
     with pytest.raises(QueryRewriteUnavailable):
         await rewriter.rewrite("a", "b")
 
@@ -115,7 +118,7 @@ async def test_rewrite_timeout_maps_to_unavailable() -> None:
 async def test_rewrite_api_error_maps_to_unavailable() -> None:
     completions = FakeCompletions()
     completions.error = OpenAIError("down")
-    rewriter = OpenAIQueryRewriter(_settings(), FakeOpenAIClient(completions))
+    rewriter = GeminiQueryRewriter(_settings(), FakeOpenAIClient(completions))
     with pytest.raises(QueryRewriteUnavailable):
         await rewriter.rewrite("a", "b")
 
@@ -124,7 +127,7 @@ async def test_rewrite_api_error_maps_to_unavailable() -> None:
 async def test_rewrite_empty_content_unavailable() -> None:
     completions = FakeCompletions()
     completions.content = "   "
-    rewriter = OpenAIQueryRewriter(_settings(), FakeOpenAIClient(completions))
+    rewriter = GeminiQueryRewriter(_settings(), FakeOpenAIClient(completions))
     with pytest.raises(QueryRewriteUnavailable):
         await rewriter.rewrite("a", "b")
 
@@ -133,7 +136,7 @@ async def test_rewrite_empty_content_unavailable() -> None:
 async def test_rewrite_missing_choices_unavailable() -> None:
     completions = FakeCompletions()
     completions.choices = []
-    rewriter = OpenAIQueryRewriter(_settings(), FakeOpenAIClient(completions))
+    rewriter = GeminiQueryRewriter(_settings(), FakeOpenAIClient(completions))
     with pytest.raises(QueryRewriteUnavailable):
         await rewriter.rewrite("a", "b")
 
@@ -142,34 +145,36 @@ async def test_rewrite_missing_choices_unavailable() -> None:
 async def test_rewrite_none_content_unavailable() -> None:
     completions = FakeCompletions()
     completions.content = None
-    rewriter = OpenAIQueryRewriter(_settings(), FakeOpenAIClient(completions))
+    rewriter = GeminiQueryRewriter(_settings(), FakeOpenAIClient(completions))
     with pytest.raises(QueryRewriteUnavailable):
         await rewriter.rewrite("a", "b")
 
 
 @pytest.mark.asyncio
-async def test_openai_client_timeout_is_eight_seconds(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_gemini_client_timeout_and_base_url(monkeypatch: pytest.MonkeyPatch) -> None:
     captured: dict[str, object] = {}
     completions = FakeCompletions()
 
     class FakeSDK:
-        def __init__(self, *, api_key: str, timeout: float) -> None:
+        def __init__(self, *, api_key: str, base_url: str, timeout: float) -> None:
             captured["api_key"] = api_key
+            captured["base_url"] = base_url
             captured["timeout"] = timeout
             self.chat = SimpleNamespace(completions=completions)
 
-    monkeypatch.setattr("pubmed_bot.adapters.llm.openai_rewriter.OpenAI", FakeSDK)
-    rewriter = OpenAIQueryRewriter(_settings())
+    monkeypatch.setattr("pubmed_bot.adapters.llm.gemini_rewriter.OpenAI", FakeSDK)
+    rewriter = GeminiQueryRewriter(_settings())
     assert await rewriter.rewrite("exercise[tiab]", "exercise[tiab]") == "gluteal hypertrophy"
-    assert captured["timeout"] == OPENAI_TIMEOUT_SECONDS
+    assert captured["base_url"] == GEMINI_BASE_URL
+    assert captured["timeout"] == GEMINI_TIMEOUT_SECONDS
     assert captured["timeout"] == 8.0
-    assert captured["api_key"] == "sk-test"
+    assert captured["api_key"] == "gemini-test"
 
 
 @pytest.mark.asyncio
 async def test_rewrite_custom_to_thread_and_non_str() -> None:
     completions = FakeCompletions()
-    rewriter = OpenAIQueryRewriter(
+    rewriter = GeminiQueryRewriter(
         _settings(),
         FakeOpenAIClient(completions),
         to_thread=_immediate,
@@ -179,7 +184,7 @@ async def test_rewrite_custom_to_thread_and_non_str() -> None:
     async def not_str(_fn: Callable[[], object]) -> object:
         return 1
 
-    broken = OpenAIQueryRewriter(
+    broken = GeminiQueryRewriter(
         _settings(),
         FakeOpenAIClient(completions),
         to_thread=not_str,
@@ -190,7 +195,7 @@ async def test_rewrite_custom_to_thread_and_non_str() -> None:
     async def boom(_fn: Callable[[], object]) -> str:
         raise OpenAIError("down")
 
-    failing = OpenAIQueryRewriter(
+    failing = GeminiQueryRewriter(
         _settings(),
         FakeOpenAIClient(completions),
         to_thread=boom,

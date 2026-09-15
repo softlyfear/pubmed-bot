@@ -10,7 +10,7 @@ class TranslationUnavailable(Exception):
 
 
 class QueryRewriteUnavailable(Exception):
-    """GPT-rewriter поискового term недоступен (сеть, timeout, пустой выход)."""
+    """Gemini-rewriter поискового term недоступен (сеть, timeout, пустой выход)."""
 
 
 class NoteRejected(Exception):

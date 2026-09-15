@@ -14,7 +14,7 @@ def test_settings_from_env(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setenv("NCBI_EMAIL", "dev@example.com")
     monkeypatch.setenv("NCBI_TOOL", "pubmed-bot")
     monkeypatch.setenv("DEEPL_AUTH_KEY", "test-deepl-key")
-    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setenv("GEMINI_API_KEY", "gemini-test")
     monkeypatch.setenv("SQLITE_PATH", str(db_path))
     get_settings.cache_clear()
 
@@ -25,8 +25,8 @@ def test_settings_from_env(monkeypatch, tmp_path: Path) -> None:
     assert settings.ncbi_email == "dev@example.com"
     assert settings.ncbi_tool == "pubmed-bot"
     assert settings.deepl_auth_key == "test-deepl-key"
-    assert settings.openai_api_key == "sk-test"
-    assert settings.openai_model == "gpt-4o-mini"
+    assert settings.gemini_api_key == "gemini-test"
+    assert settings.gemini_model == "gemini-3.5-flash-lite"
     assert settings.sqlite_path == db_path
     assert settings.log_level == "INFO"
     assert settings.ncbi_max_rps == 8
@@ -42,8 +42,8 @@ def test_settings_optional_overrides(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setenv("NCBI_API_KEY", "k")
     monkeypatch.setenv("NCBI_EMAIL", "a@b.c")
     monkeypatch.setenv("DEEPL_AUTH_KEY", "d")
-    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
-    monkeypatch.setenv("OPENAI_MODEL", "gpt-4o")
+    monkeypatch.setenv("GEMINI_API_KEY", "gemini-test")
+    monkeypatch.setenv("GEMINI_MODEL", "gemini-3.7-flash")
     monkeypatch.setenv("SQLITE_PATH", str(tmp_path / "db.sqlite"))
     monkeypatch.setenv("LOG_LEVEL", "DEBUG")
     monkeypatch.setenv("NCBI_MAX_RPS", "7")
@@ -60,25 +60,25 @@ def test_settings_optional_overrides(monkeypatch, tmp_path: Path) -> None:
     assert settings.user_open_per_min == 4
     assert settings.subscription_hour_utc == 9
     assert settings.deepl_min_chars_remaining == 1000
-    assert settings.openai_model == "gpt-4o"
+    assert settings.gemini_model == "gemini-3.7-flash"
 
 
-def test_blank_openai_model_defaults(monkeypatch, tmp_path: Path) -> None:
+def test_blank_gemini_model_defaults(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setenv("BOT_TOKEN", "t")
     monkeypatch.setenv("NCBI_API_KEY", "k")
     monkeypatch.setenv("NCBI_EMAIL", "a@b.c")
     monkeypatch.setenv("DEEPL_AUTH_KEY", "d")
-    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
-    monkeypatch.setenv("OPENAI_MODEL", "  ")
+    monkeypatch.setenv("GEMINI_API_KEY", "sk-test")
+    monkeypatch.setenv("GEMINI_MODEL", "  ")
     monkeypatch.setenv("SQLITE_PATH", str(tmp_path / "db.sqlite"))
     settings = Settings(_env_file=None)
-    assert settings.openai_model == "gpt-4o-mini"
+    assert settings.gemini_model == "gemini-3.5-flash-lite"
 
 
-def test_env_example_lists_openai_names() -> None:
+def test_env_example_lists_gemini_names() -> None:
     text = Path(".env.example").read_text(encoding="utf-8")
-    assert "OPENAI_API_KEY=" in text
-    assert "OPENAI_MODEL=" in text
+    assert "GEMINI_API_KEY=" in text
+    assert "GEMINI_MODEL=" in text
 
 
 def test_settings_has_no_postgres_or_whitelist_fields() -> None:

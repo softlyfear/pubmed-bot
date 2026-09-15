@@ -1,4 +1,4 @@
-"""Адаптер OpenAI Chat Completions: rewriter английского поискового term."""
+"""Адаптер Gemini: rewriter английского поискового term."""
 
 from __future__ import annotations
 
@@ -12,9 +12,10 @@ from openai.types.chat import ChatCompletionMessageParam
 from pubmed_bot.config import Settings
 from pubmed_bot.domain.exceptions import QueryRewriteUnavailable
 
-OPENAI_TIMEOUT_SECONDS = 8.0
-OPENAI_MAX_TOKENS = 64
-OPENAI_TEMPERATURE = 0
+GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
+GEMINI_TIMEOUT_SECONDS = 8.0
+GEMINI_MAX_TOKENS = 64
+GEMINI_TEMPERATURE = 0
 
 SYSTEM_PROMPT = """You are a PubMed query rewriter for a search bot. You do not chat with the user and you do not give medical advice.
 
@@ -63,8 +64,8 @@ class _Chat(Protocol):
     def completions(self) -> _Completions: ...
 
 
-class OpenAIChatClient(Protocol):
-    """Минимум sync-клиента OpenAI, чтобы тесты подставляли fake."""
+class GeminiChatClient(Protocol):
+    """Минимум sync-клиента Gemini OpenAI-compatible API для fake в тестах."""
 
     @property
     def chat(self) -> _Chat: ...
@@ -98,39 +99,43 @@ def postprocess_rewrite(raw: str) -> str:
     return first
 
 
-class OpenAIQueryRewriter:
-    """Официальный `openai.OpenAI`: Chat Completions, timeout 8 с, через to_thread."""
+class GeminiQueryRewriter:
+    """Gemini OpenAI-compatible API: Chat Completions, timeout 8 с, через to_thread."""
 
     def __init__(
         self,
         settings: Settings,
-        client: OpenAIChatClient | None = None,
+        client: GeminiChatClient | None = None,
         *,
         to_thread: Callable[..., Awaitable[object]] | None = None,
     ) -> None:
-        self._api_key = settings.openai_api_key
-        self._model = settings.openai_model
+        self._api_key = settings.gemini_api_key
+        self._model = settings.gemini_model
         self._stub = client
         self._sdk: OpenAI | None = None
         self._to_thread = to_thread
 
     def _sdk_client(self) -> OpenAI:
         if self._sdk is None:
-            self._sdk = OpenAI(api_key=self._api_key, timeout=OPENAI_TIMEOUT_SECONDS)
+            self._sdk = OpenAI(
+                api_key=self._api_key,
+                base_url=GEMINI_BASE_URL,
+                timeout=GEMINI_TIMEOUT_SECONDS,
+            )
         return self._sdk
 
     def _create_completion(self, messages: list[ChatCompletionMessageParam]) -> object:
         if self._stub is not None:
             return self._stub.chat.completions.create(
                 model=self._model,
-                temperature=OPENAI_TEMPERATURE,
-                max_tokens=OPENAI_MAX_TOKENS,
+                temperature=GEMINI_TEMPERATURE,
+                max_tokens=GEMINI_MAX_TOKENS,
                 messages=messages,
             )
         return self._sdk_client().chat.completions.create(
             model=self._model,
-            temperature=float(OPENAI_TEMPERATURE),
-            max_tokens=OPENAI_MAX_TOKENS,
+            temperature=float(GEMINI_TEMPERATURE),
+            max_tokens=GEMINI_MAX_TOKENS,
             messages=messages,
         )
 

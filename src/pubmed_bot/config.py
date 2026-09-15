@@ -22,8 +22,8 @@ class Settings(BaseSettings):
     ncbi_email: str
     ncbi_tool: str = "pubmed-bot"
     deepl_auth_key: str
-    openai_api_key: str
-    openai_model: str = "gpt-4o-mini"
+    gemini_api_key: str
+    gemini_model: str = "gemini-3.5-flash-lite"
     sqlite_path: Path
 
     log_level: str = "INFO"
@@ -39,7 +39,7 @@ class Settings(BaseSettings):
         "ncbi_email",
         "ncbi_tool",
         "deepl_auth_key",
-        "openai_api_key",
+        "gemini_api_key",
         mode="after",
     )
     @classmethod
@@ -48,11 +48,11 @@ class Settings(BaseSettings):
             raise ValueError("пустое значение недопустимо")
         return value
 
-    @field_validator("openai_model", mode="after")
+    @field_validator("gemini_model", mode="after")
     @classmethod
-    def _default_blank_openai_model(cls, value: str) -> str:
+    def _default_blank_gemini_model(cls, value: str) -> str:
         stripped = value.strip()
-        return stripped if stripped else "gpt-4o-mini"
+        return stripped if stripped else "gemini-3.5-flash-lite"
 
 
 @lru_cache

@@ -35,7 +35,7 @@ def _settings(tmp_path: Path) -> Settings:
         ncbi_email="dev@example.com",
         ncbi_tool="pubmed-bot",
         deepl_auth_key="d",
-        openai_api_key="sk-test",
+        gemini_api_key="sk-test",
         sqlite_path=tmp_path / "pubmed.db",
         _env_file=None,
     )
@@ -46,7 +46,7 @@ def _set_env(monkeypatch: pytest.MonkeyPatch, db_path: Path) -> None:
     monkeypatch.setenv("NCBI_API_KEY", "k")
     monkeypatch.setenv("NCBI_EMAIL", "dev@example.com")
     monkeypatch.setenv("DEEPL_AUTH_KEY", "d")
-    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setenv("GEMINI_API_KEY", "sk-test")
     monkeypatch.setenv("SQLITE_PATH", str(db_path))
     get_settings.cache_clear()
 
@@ -124,7 +124,7 @@ async def test_run_polling_starts_and_shuts_down(
     dispatcher = SimpleNamespace(start_polling=AsyncMock())
     monkeypatch.setattr("pubmed_bot.main.create_dispatcher", lambda *a, **k: dispatcher)
     monkeypatch.setattr("pubmed_bot.main.DeeplTranslator", MagicMock())
-    monkeypatch.setattr("pubmed_bot.main.OpenAIQueryRewriter", MagicMock())
+    monkeypatch.setattr("pubmed_bot.main.GeminiQueryRewriter", MagicMock())
     bot = MagicMock()
     bot.session.close = AsyncMock()
     monkeypatch.setattr("pubmed_bot.main.Bot", lambda *a, **k: bot)

@@ -44,7 +44,7 @@ def _set_required_env(monkeypatch: pytest.MonkeyPatch, db_path: Path) -> None:
     monkeypatch.setenv("NCBI_API_KEY", "test-key")
     monkeypatch.setenv("NCBI_EMAIL", "dev@example.com")
     monkeypatch.setenv("DEEPL_AUTH_KEY", "test-deepl")
-    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setenv("GEMINI_API_KEY", "sk-test")
     monkeypatch.setenv("SQLITE_PATH", str(db_path))
     get_settings.cache_clear()
 

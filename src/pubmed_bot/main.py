@@ -9,7 +9,7 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 
 from pubmed_bot.adapters.db.session import create_engine_from_path, session_factory
-from pubmed_bot.adapters.llm.openai_rewriter import OpenAIQueryRewriter
+from pubmed_bot.adapters.llm.gemini_rewriter import GeminiQueryRewriter
 from pubmed_bot.adapters.ncbi.client import NcbiEutilsClient
 from pubmed_bot.adapters.translator.deepl import DeeplTranslator
 from pubmed_bot.bot.factory import create_dispatcher
@@ -35,7 +35,7 @@ async def run_polling() -> None:
     pubmed = NcbiEutilsClient(settings, TokenBucket(settings.ncbi_max_rps))
     translation = TranslationService(
         DeeplTranslator(settings),
-        OpenAIQueryRewriter(settings),
+        GeminiQueryRewriter(settings),
         session_maker,
         settings.deepl_min_chars_remaining,
     )

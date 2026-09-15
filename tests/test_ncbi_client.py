@@ -24,7 +24,7 @@ def _settings() -> Settings:
         ncbi_email="dev@example.com",
         ncbi_tool="pubmed-bot",
         deepl_auth_key="d",
-        openai_api_key="sk-test",
+        gemini_api_key="sk-test",
         sqlite_path=Path("x.db"),
         _env_file=None,
     )

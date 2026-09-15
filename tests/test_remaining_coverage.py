@@ -80,7 +80,7 @@ def _set_env(monkeypatch: pytest.MonkeyPatch, db_path: Path) -> None:
     monkeypatch.setenv("NCBI_API_KEY", "k")
     monkeypatch.setenv("NCBI_EMAIL", "dev@example.com")
     monkeypatch.setenv("DEEPL_AUTH_KEY", "d")
-    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setenv("GEMINI_API_KEY", "sk-test")
     monkeypatch.setenv("SQLITE_PATH", str(db_path))
     get_settings.cache_clear()
 
@@ -100,7 +100,7 @@ def _settings() -> Settings:
         ncbi_email="dev@example.com",
         ncbi_tool="pubmed-bot",
         deepl_auth_key="d",
-        openai_api_key="sk-test",
+        gemini_api_key="sk-test",
         sqlite_path=Path("x.db"),
         _env_file=None,
     )
