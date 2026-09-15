@@ -65,7 +65,7 @@ def sqlite_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setenv("NCBI_API_KEY", "k")
     monkeypatch.setenv("NCBI_EMAIL", "dev@example.com")
     monkeypatch.setenv("DEEPL_AUTH_KEY", "d")
-    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setenv("GEMINI_API_KEY", "sk-test")
     monkeypatch.setenv("SQLITE_PATH", str(db_path))
     get_settings.cache_clear()
     command.upgrade(Config("alembic.ini"), "head")
@@ -239,7 +239,7 @@ def test_empty_api_keys_rejected(tmp_path: Path) -> None:
             ncbi_api_key="k",
             ncbi_email="a@b.c",
             deepl_auth_key="d",
-            openai_api_key="sk-test",
+            gemini_api_key="sk-test",
             sqlite_path=tmp_path / "x.db",
             _env_file=None,
         )
@@ -249,7 +249,7 @@ def test_empty_api_keys_rejected(tmp_path: Path) -> None:
             ncbi_api_key="",
             ncbi_email="a@b.c",
             deepl_auth_key="d",
-            openai_api_key="sk-test",
+            gemini_api_key="sk-test",
             sqlite_path=tmp_path / "x.db",
             _env_file=None,
         )
@@ -259,7 +259,7 @@ def test_empty_api_keys_rejected(tmp_path: Path) -> None:
             ncbi_api_key="k",
             ncbi_email="a@b.c",
             deepl_auth_key="d",
-            openai_api_key="  ",
+            gemini_api_key="  ",
             sqlite_path=tmp_path / "x.db",
             _env_file=None,
         )
