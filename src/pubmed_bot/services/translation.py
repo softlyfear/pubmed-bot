@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from pubmed_bot.adapters.db.repositories import QueryTranslationCacheRepo, TranslationCacheRepo
 from pubmed_bot.adapters.db.session import session_scope
-from pubmed_bot.adapters.llm.openai_rewriter import QueryRewriter
+from pubmed_bot.adapters.llm.gemini_rewriter import QueryRewriter
 from pubmed_bot.adapters.translator.deepl import Translator
 from pubmed_bot.domain.enums import TranslationKind
 from pubmed_bot.domain.exceptions import QueryRewriteUnavailable, TranslationUnavailable
@@ -29,7 +29,7 @@ def _rewrite_rejected(text: str) -> bool:
 
 
 class TranslationService:
-    """Статьи EN→RU с кэшем; запросы: DeepL при кириллице, затем GPT-rewriter."""
+    """Статьи EN→RU с кэшем; запросы: DeepL при кириллице, затем Gemini-rewriter."""
 
     def __init__(
         self,

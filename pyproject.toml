@@ -37,7 +37,7 @@ select = ["E", "F", "I", "UP"]
 
 [tool.ruff.lint.per-file-ignores]
 "alembic/**" = ["E402", "E501", "I001", "UP007", "UP035"]
-"src/pubmed_bot/adapters/llm/openai_rewriter.py" = ["E501"]
+"src/pubmed_bot/adapters/llm/gemini_rewriter.py" = ["E501"]
 
 [tool.ty.rules]
 all = "error"
