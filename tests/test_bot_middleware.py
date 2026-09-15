@@ -241,7 +241,7 @@ def test_empty_api_keys_rejected(tmp_path: Path) -> None:
             deepl_auth_key="d",
             gemini_api_key="sk-test",
             sqlite_path=tmp_path / "x.db",
-            _env_file=None,
+            _env_file=None,  # type: ignore[call-arg]
         )
     with pytest.raises(ValidationError):
         Settings(
@@ -251,7 +251,7 @@ def test_empty_api_keys_rejected(tmp_path: Path) -> None:
             deepl_auth_key="d",
             gemini_api_key="sk-test",
             sqlite_path=tmp_path / "x.db",
-            _env_file=None,
+            _env_file=None,  # type: ignore[call-arg]
         )
     with pytest.raises(ValidationError):
         Settings(
@@ -261,5 +261,5 @@ def test_empty_api_keys_rejected(tmp_path: Path) -> None:
             deepl_auth_key="d",
             gemini_api_key="  ",
             sqlite_path=tmp_path / "x.db",
-            _env_file=None,
+            _env_file=None,  # type: ignore[call-arg]
         )

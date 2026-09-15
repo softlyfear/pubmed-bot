@@ -19,7 +19,6 @@ from pubmed_bot.bot.keyboards import (
     CALLBACK_OPEN_PREFIX,
     article_keyboard,
     favorites_list_keyboard,
-    list_keyboard,
     notes_list_keyboard,
 )
 from pubmed_bot.bot.states import NoteStates

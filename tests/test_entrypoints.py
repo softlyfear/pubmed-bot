@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Coroutine
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
@@ -37,7 +38,7 @@ def _settings(tmp_path: Path) -> Settings:
         deepl_auth_key="d",
         gemini_api_key="sk-test",
         sqlite_path=tmp_path / "pubmed.db",
-        _env_file=None,
+        _env_file=None,  # type: ignore[call-arg]
     )
 
 
@@ -145,7 +146,10 @@ async def test_run_polling_starts_and_shuts_down(
 
 
 def test_main_uses_asyncio_run(monkeypatch: pytest.MonkeyPatch) -> None:
-    ran = MagicMock()
+    def close_coroutine(coro: Coroutine[object, object, object]) -> None:
+        coro.close()
+
+    ran = MagicMock(side_effect=close_coroutine)
     monkeypatch.setattr("pubmed_bot.main.asyncio.run", ran)
     from pubmed_bot.main import main
 
@@ -167,6 +171,7 @@ def test_long_pmid_callback_rejected() -> None:
 async def test_session_scope_rollbacks(sqlite_file: Path) -> None:
     engine: AsyncEngine = create_engine_from_path(sqlite_file)
     factory = session_factory(engine)
+    session = None
     try:
         with pytest.raises(RuntimeError, match="boom"):
             async with session_scope(factory) as session:

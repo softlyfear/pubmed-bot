@@ -18,7 +18,7 @@ def test_settings_from_env(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setenv("SQLITE_PATH", str(db_path))
     get_settings.cache_clear()
 
-    settings = Settings(_env_file=None)
+    settings = Settings(_env_file=None)  # type: ignore[call-arg]
 
     assert settings.bot_token == "test-bot-token"
     assert settings.ncbi_api_key == "test-ncbi-key"
@@ -52,7 +52,7 @@ def test_settings_optional_overrides(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setenv("SUBSCRIPTION_HOUR_UTC", "9")
     monkeypatch.setenv("DEEPL_MIN_CHARS_REMAINING", "1000")
 
-    settings = Settings(_env_file=None)
+    settings = Settings(_env_file=None)  # type: ignore[call-arg]
 
     assert settings.log_level == "DEBUG"
     assert settings.ncbi_max_rps == 7
@@ -71,7 +71,7 @@ def test_blank_gemini_model_defaults(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setenv("GEMINI_API_KEY", "sk-test")
     monkeypatch.setenv("GEMINI_MODEL", "  ")
     monkeypatch.setenv("SQLITE_PATH", str(tmp_path / "db.sqlite"))
-    settings = Settings(_env_file=None)
+    settings = Settings(_env_file=None)  # type: ignore[call-arg]
     assert settings.gemini_model == "gemini-3.5-flash-lite"
 
 

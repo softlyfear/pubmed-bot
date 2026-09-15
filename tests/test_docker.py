@@ -36,6 +36,7 @@ def test_compose_bot_volume_no_postgres() -> None:
     assert "no-new-privileges:true" in text
     assert "volumes:" in text
     assert "bot:" in text
+    assert "pull_policy: build" in text
 
 
 def test_dockerignore_excludes_env() -> None:

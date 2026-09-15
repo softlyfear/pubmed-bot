@@ -217,19 +217,23 @@ async def test_write_audit_clips_long_query(sqlite_file: Path) -> None:
         await engine.dispose()
 
 
-def test_purge_job_registered_on_same_scheduler(tmp_path: Path) -> None:
+@pytest.mark.asyncio
+async def test_purge_job_registered_on_same_scheduler(tmp_path: Path) -> None:
     class Dummy:
         async def run_cycle(self) -> None:
             return None
 
     engine = create_engine_from_path(tmp_path / "sched.db")
-    scheduler = build_scheduler(6, Dummy())
-    add_purge_job(scheduler, 6, session_factory(engine))
-    assert scheduler.get_job(SUB_JOB_ID) is not None
-    job = scheduler.get_job(AUDIT_JOB_ID)
-    assert job is not None
-    assert "6" in str(job.trigger)
-    assert "15" in str(job.trigger)
+    try:
+        scheduler = build_scheduler(6, Dummy())
+        add_purge_job(scheduler, 6, session_factory(engine))
+        assert scheduler.get_job(SUB_JOB_ID) is not None
+        job = scheduler.get_job(AUDIT_JOB_ID)
+        assert job is not None
+        assert "6" in str(job.trigger)
+        assert "15" in str(job.trigger)
+    finally:
+        await engine.dispose()
 
 
 @pytest.mark.asyncio

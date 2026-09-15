@@ -2,6 +2,7 @@
 services:
   bot:
     build: .
+    pull_policy: build
     profiles: ['pubmed-bot']
     env_file:
       - .env
