@@ -15,7 +15,7 @@ from aiogram.types import (
 )
 
 from pubmed_bot.bot.handlers.extras import on_export, on_note_start
-from pubmed_bot.bot.texts import NOTE_PROMPT
+from pubmed_bot.bot.texts import NOTE_PROMPT_EDIT
 from pubmed_bot.domain.models import Article
 from pubmed_bot.services.article import OpenedArticle
 
@@ -65,7 +65,7 @@ async def test_note_start_escapes_html(monkeypatch: pytest.MonkeyPatch) -> None:
     assert sent
     assert escape("p<0.05 & B") in sent[0]
     assert "<0.05" not in sent[0]
-    assert NOTE_PROMPT in sent[0]
+    assert NOTE_PROMPT_EDIT in sent[0]
     state.set_state.assert_awaited()
 
 
@@ -181,7 +181,7 @@ async def test_fav_remove_from_card_and_list(monkeypatch: pytest.MonkeyPatch) ->
     assert isinstance(remaining, InlineKeyboardMarkup)
     labels = [btn.text for row in remaining.inline_keyboard for btn in row]
     data = [btn.callback_data for row in remaining.inline_keyboard for btn in row]
-    assert "убрать 1" in labels
+    assert "Удалить" in labels
     assert "o:2002" in data
     assert "fd:2002" in data
     assert "fd:2001" not in data
@@ -201,10 +201,10 @@ def test_favorites_list_keyboard_has_remove_rows() -> None:
 
     markup = favorites_list_keyboard(("11", "12"))
     rows = markup.inline_keyboard
-    assert [btn.text for btn in rows[0]] == ["1", "2"]
-    assert [btn.callback_data for btn in rows[0]] == ["o:11", "o:12"]
-    assert [btn.text for btn in rows[1]] == ["убрать 1", "убрать 2"]
-    assert [btn.callback_data for btn in rows[1]] == ["fd:11", "fd:12"]
+    assert [btn.text for btn in rows[0]] == ["1", "Удалить"]
+    assert [btn.callback_data for btn in rows[0]] == ["o:11", "fd:11"]
+    assert [btn.text for btn in rows[1]] == ["2", "Удалить"]
+    assert [btn.callback_data for btn in rows[1]] == ["o:12", "fd:12"]
     search = list_keyboard(("11",), has_more=False)
     search_labels = [btn.text for row in search.inline_keyboard for btn in row]
     assert "убрать 1" not in search_labels
@@ -245,9 +245,8 @@ async def test_notes_list_empty_and_items(monkeypatch: pytest.MonkeyPatch) -> No
     assert isinstance(markup, InlineKeyboardMarkup)
     labels = [btn.text for row in markup.inline_keyboard for btn in row]
     data = [btn.callback_data for row in markup.inline_keyboard for btn in row]
-    assert labels == ["1", "2"]
-    assert data == ["o:11", "o:12"]
-    assert "убрать 1" not in labels
+    assert labels == ["1", "Править", "Удалить", "2", "Править", "Удалить", "Главное меню"]
+    assert data == ["o:11", "n:11", "nd:11", "o:12", "n:12", "nd:12", "m:main"]
     assert "Новый запрос" not in labels
     from pubmed_bot.bot.keyboards import start_keyboard
 

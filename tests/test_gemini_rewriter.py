@@ -31,7 +31,7 @@ def _settings() -> Settings:
         deepl_auth_key="d",
         gemini_api_key="gemini-test",
         sqlite_path=Path("x.db"),
-        _env_file=None,
+        _env_file=None,  # type: ignore[call-arg]
     )
 
 
@@ -53,9 +53,14 @@ class FakeCompletions:
         )
 
 
+class FakeChat:
+    def __init__(self, completions: FakeCompletions) -> None:
+        self.completions = completions
+
+
 class FakeOpenAIClient:
     def __init__(self, completions: FakeCompletions) -> None:
-        self.chat = SimpleNamespace(completions=completions)
+        self.chat = FakeChat(completions)
 
 
 def test_system_prompt_is_verbatim_ac() -> None:

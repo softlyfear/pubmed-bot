@@ -365,8 +365,8 @@ def test_keyboards_extra_rows() -> None:
     assert labels == ["Найти", "Избранное", "Заметки", "Подписки"]
     markup = list_keyboard(("1", "2"), has_more=True, with_subscribe=True)
     labels = [btn.text for row in markup.inline_keyboard for btn in row]
-    assert "ещё" in labels
-    assert "подписка на этот запрос" in labels
+    assert "Ещё" in labels
+    assert "Подписка на этот запрос" in labels
     assert "Новый запрос" not in labels
     search_list = list_keyboard(
         ("1", "2"),

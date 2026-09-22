@@ -177,7 +177,7 @@ async def test_query_sends_progress_then_edits_list() -> None:
         data = [btn.callback_data for row in markup.inline_keyboard for btn in row]
         assert BTN_NEW_QUERY in labels
         assert CALLBACK_FIND in data
-        assert "подписка на этот запрос" in labels
+        assert "Подписка на этот запрос" in labels
 
     async def run(*args: object, **kwargs: object) -> SearchPage:
         order.append("run")
@@ -215,9 +215,9 @@ def test_search_list_keyboard_has_new_query_on_own_row() -> None:
     rows = markup.inline_keyboard
     assert [btn.text for btn in rows[0]] == ["1", "2"]
     assert [btn.callback_data for btn in rows[0]] == ["o:100", "o:200"]
-    assert [btn.text for btn in rows[1]] == ["ещё", "подписка на этот запрос"]
-    assert [btn.text for btn in rows[2]] == [BTN_NEW_QUERY]
-    assert [btn.callback_data for btn in rows[2]] == [CALLBACK_FIND]
+    assert [btn.text for btn in rows[1]] == ["Ещё", "Подписка на этот запрос"]
+    assert [btn.text for btn in rows[2]] == [BTN_NEW_QUERY, "Главное меню"]
+    assert [btn.callback_data for btn in rows[2]] == [CALLBACK_FIND, "m:main"]
 
 
 def test_fav_and_worker_list_keyboard_omit_new_query() -> None:
@@ -264,7 +264,9 @@ async def test_empty_run_attaches_new_query_button() -> None:
     assert captured["text"] == EMPTY_RESULT
     markup = captured["markup"]
     assert isinstance(markup, InlineKeyboardMarkup)
-    assert [[btn.text for btn in row] for row in markup.inline_keyboard] == [[BTN_NEW_QUERY]]
+    assert [[btn.text for btn in row] for row in markup.inline_keyboard] == [
+        [BTN_NEW_QUERY, "Главное меню"]
+    ]
     assert markup.inline_keyboard[0][0].callback_data == CALLBACK_FIND
 
 

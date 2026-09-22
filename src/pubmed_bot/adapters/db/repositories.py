@@ -1,9 +1,12 @@
 """Репозитории SQLite: кэш переводов и пользователи."""
 
 from datetime import UTC, datetime
+from enum import StrEnum
+from typing import cast
 
 from sqlalchemy import delete, select
 from sqlalchemy.dialects.sqlite import insert
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -387,7 +390,7 @@ class NoteRepo:
         if user is None:
             return False
         stmt = delete(Note).where(Note.user_id == user.id, Note.pmid == pmid)
-        result = await self._session.execute(stmt)
+        result = cast("CursorResult[object]", await self._session.execute(stmt))
         return result.rowcount > 0
 
 
@@ -532,7 +535,7 @@ class AuditLogRepo:
         return len(deleted)
 
 
-def _enum_or_none(enum_cls: type, value: str | None) -> object | None:
+def _enum_or_none[T: StrEnum](enum_cls: type[T], value: str | None) -> T | None:
     if not value:
         return None
     try:

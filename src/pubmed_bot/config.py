@@ -58,4 +58,4 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     """Вернуть кэшированный экземпляр настроек."""
-    return Settings()
+    return Settings()  # type: ignore[call-arg]
