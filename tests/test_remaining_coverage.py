@@ -102,7 +102,7 @@ def _settings() -> Settings:
         deepl_auth_key="d",
         gemini_api_key="sk-test",
         sqlite_path=Path("x.db"),
-        _env_file=None,
+        _env_file=None,  # type: ignore[call-arg]
     )
 
 
@@ -340,18 +340,22 @@ async def test_subscriptions_title_fail_and_naive_mindate(sqlite_file: Path) -> 
 
 @pytest.mark.asyncio
 async def test_write_audit_unknown_and_empty_and_error(sqlite_file: Path) -> None:
-    factory = session_factory(create_engine_from_path(sqlite_file))
-    await write_audit(factory, event="nope")
-    await write_audit(factory, event="search", query_text="   ", pmid="  ")
+    engine = create_engine_from_path(sqlite_file)
+    factory = session_factory(engine)
+    try:
+        await write_audit(factory, event="nope")
+        await write_audit(factory, event="search", query_text="   ", pmid="  ")
 
-    def boom_factory() -> object:
-        raise RuntimeError("db")
+        def boom_factory() -> object:
+            raise RuntimeError("db")
 
-    await write_audit(
-        cast("async_sessionmaker[AsyncSession]", boom_factory),
-        event="search",
-        query_text="q",
-    )
+        await write_audit(
+            cast("async_sessionmaker[AsyncSession]", boom_factory),
+            event="search",
+            query_text="q",
+        )
+    finally:
+        await engine.dispose()
 
 
 def test_export_and_article_blocks_branches() -> None:
