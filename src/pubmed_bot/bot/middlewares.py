@@ -128,8 +128,18 @@ class UserRateLimitMiddleware(BaseMiddleware):
         return await handler(event, data)
 
 
+def _guarded(event: TelegramObject) -> bool:
+    """Кнопки и текст (не команды) ждут окончания текущего запроса."""
+    if isinstance(event, CallbackQuery):
+        return True
+    if isinstance(event, Message):
+        text = event.text or ""
+        return bool(text) and not text.startswith("/")
+    return False
+
+
 class ProcessingBlockerMiddleware(BaseMiddleware):
-    """Блокирует клики на кнопки, пока выполняется запрос."""
+    """Блокирует кнопки и новые запросы, пока выполняется предыдущий."""
 
     @override
     async def __call__(
@@ -138,20 +148,28 @@ class ProcessingBlockerMiddleware(BaseMiddleware):
         event: TelegramObject,
         data: dict[str, Any],
     ) -> Any:
-        if not isinstance(event, CallbackQuery):
+        if not _guarded(event):
             return await handler(event, data)
         context = data.get("state")
         if context is None:
             return await handler(event, data)
         state_data = await context.get_data()
         if state_data.get("processing"):
-            await event.answer(PROCESSING_TEXT, show_alert=True)
+            await _notify_processing(event)
             return None
         try:
             await context.update_data(processing=True)
             return await handler(event, data)
         finally:
             await context.update_data(processing=False)
+
+
+async def _notify_processing(event: TelegramObject) -> None:
+    if isinstance(event, Message):
+        await event.answer(PROCESSING_TEXT)
+        return
+    if isinstance(event, CallbackQuery):
+        await event.answer(PROCESSING_TEXT, show_alert=True)
 
 
 async def _notify_limit(event: TelegramObject) -> None:

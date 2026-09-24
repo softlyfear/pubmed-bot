@@ -13,8 +13,10 @@ from sqlalchemy import select
 from pubmed_bot.adapters.db.models import User as DbUser
 from pubmed_bot.adapters.db.session import create_engine_from_path, session_factory
 from pubmed_bot.bot.middlewares import (
+    PROCESSING_TEXT,
     RATE_LIMIT_TEXT,
     PrivateChatMiddleware,
+    ProcessingBlockerMiddleware,
     UserRateLimitMiddleware,
     UserUpsertMiddleware,
 )
@@ -230,6 +232,58 @@ async def test_fav_delete_does_not_count_as_open() -> None:
     assert await middleware(handler, _callback(data="o:1"), {}) == "ok"
     assert await middleware(handler, _callback(data="fd:2"), {}) == "ok"
     assert called == [1, 1]
+
+
+class _FakeFsm:
+    def __init__(self) -> None:
+        self.data: dict[str, object] = {}
+
+    async def get_data(self) -> dict[str, object]:
+        return dict(self.data)
+
+    async def update_data(self, **kwargs: object) -> None:
+        self.data.update(kwargs)
+
+
+@pytest.mark.asyncio
+async def test_new_query_while_processing_gets_wait(monkeypatch: pytest.MonkeyPatch) -> None:
+    answers: list[str] = []
+
+    async def fake_answer(self, text, **kwargs):
+        answers.append(text)
+
+    monkeypatch.setattr(Message, "answer", fake_answer)
+    middleware = ProcessingBlockerMiddleware()
+    fsm = _FakeFsm()
+    data = {"state": fsm}
+    inner: list[object] = []
+
+    async def spam(event, data):
+        inner.append(await middleware(handler, _message(text="second"), data))
+        inner.append(await middleware(handler, _message(text="/start"), data))
+        return "first"
+
+    async def handler(event, data):
+        return "ok"
+
+    assert await middleware(spam, _message(text="first"), data) == "first"
+    assert inner == [None, "ok"]
+    assert answers == [PROCESSING_TEXT]
+    assert fsm.data["processing"] is False
+    assert await middleware(handler, _message(text="third"), data) == "ok"
+
+
+@pytest.mark.asyncio
+async def test_processing_flag_reset_after_handler_error() -> None:
+    middleware = ProcessingBlockerMiddleware()
+    fsm = _FakeFsm()
+
+    async def boom(event, data):
+        raise RuntimeError
+
+    with pytest.raises(RuntimeError):
+        await middleware(boom, _message(text="knee"), {"state": fsm})
+    assert fsm.data["processing"] is False
 
 
 def test_empty_api_keys_rejected(tmp_path: Path) -> None:

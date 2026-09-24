@@ -1,5 +1,6 @@
 """Хендлер: без «Найти» NCBI не вызывается."""
 
+import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -280,3 +281,26 @@ def test_handlers_do_not_import_openai_or_deepl() -> None:
         assert "from openai" not in source
         assert "import deepl" not in source
         assert "from deepl" not in source
+
+
+@pytest.mark.asyncio
+async def test_query_shows_typing_while_searching() -> None:
+    from pubmed_bot.services.search import SearchPage
+
+    message = AsyncMock()
+    message.text = "knee"
+    message.from_user.id = 1
+    message.chat.id = 1
+    status = AsyncMock()
+    message.answer = AsyncMock(return_value=status)
+    search = AsyncMock()
+
+    async def run(*args, **kwargs):
+        await asyncio.sleep(0.01)
+        return SearchPage(items=(), page=1, has_more=False, empty=True, no_more=False)
+
+    search.run = AsyncMock(side_effect=run)
+    await on_query(message, AsyncMock(), search)
+    message.bot.send_chat_action.assert_awaited_with(
+        chat_id=1, action="typing", message_thread_id=None
+    )
