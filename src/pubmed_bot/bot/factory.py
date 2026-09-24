@@ -45,7 +45,9 @@ def create_dispatcher(
     upsert = UserUpsertMiddleware(session_maker)
     dispatcher.message.outer_middleware(upsert)
     dispatcher.callback_query.outer_middleware(upsert)
-    dispatcher.callback_query.outer_middleware(ProcessingBlockerMiddleware())
+    blocker = ProcessingBlockerMiddleware()
+    dispatcher.message.outer_middleware(blocker)
+    dispatcher.callback_query.outer_middleware(blocker)
     rate = UserRateLimitMiddleware(
         PerUserWindow(settings.user_search_per_min),
         PerUserWindow(settings.user_open_per_min),

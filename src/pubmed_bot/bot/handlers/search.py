@@ -1,11 +1,13 @@
 """Поиск: «Найти» → запрос → список из 10, пагинация."""
 
 import logging
+from contextlib import AbstractAsyncContextManager, nullcontext
 
-from aiogram import F, Router
+from aiogram import Bot, F, Router
 from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
+from aiogram.utils.chat_action import ChatActionSender
 
 from pubmed_bot.bot.formatting import format_list
 from pubmed_bot.bot.keyboards import (
@@ -62,7 +64,8 @@ async def on_query(
         return
     status = await message.answer(SEARCH_PROGRESS)
     try:
-        page = await search_service.run(message.from_user.id, query, page=1)
+        async with _typing(message.bot, message.chat.id):
+            page = await search_service.run(message.from_user.id, query, page=1)
     except TranslationUnavailable:
         logger.warning(
             "перевод запроса недоступен user_id=%s",
@@ -95,7 +98,8 @@ async def on_more(callback: CallbackQuery, search_service: SearchService) -> Non
         await callback.answer()
         return
     try:
-        page = await search_service.next_page(callback.from_user.id)
+        async with _typing(callback.bot, callback.from_user.id):
+            page = await search_service.next_page(callback.from_user.id)
     except PubmedUnavailable:
         logger.warning(
             "NCBI недоступен на «ещё» user_id=%s",
@@ -141,6 +145,13 @@ async def on_main_menu(callback: CallbackQuery, state: FSMContext) -> None:
         START_TEXT,
         reply_markup=start_keyboard(),
     )
+
+
+def _typing(bot: Bot | None, chat_id: int) -> AbstractAsyncContextManager[object]:
+    """«печатает…» в шапке чата, пока идёт поиск."""
+    if bot is None:
+        return nullcontext()
+    return ChatActionSender.typing(chat_id=chat_id, bot=bot)
 
 
 async def _send_page(
