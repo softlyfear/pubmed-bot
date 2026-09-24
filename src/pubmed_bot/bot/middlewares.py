@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Awaitable, Callable
 from typing import Any, override
 
 from aiogram import BaseMiddleware
-from aiogram.enums import ChatType
+from aiogram.enums import ChatAction, ChatType
 from aiogram.types import CallbackQuery, Message, TelegramObject
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -21,8 +22,12 @@ from pubmed_bot.bot.keyboards import (
 from pubmed_bot.bot.states import NoteStates
 from pubmed_bot.services.rate_limit import PerUserWindow
 
+logger = logging.getLogger(__name__)
+
 RATE_LIMIT_TEXT = "Слишком много запросов. Подождите минуту."
 PROCESSING_TEXT = "Подождите, запрос выполняется…"
+PROCESSING_KEY = "processing"
+INTERRUPTED_KEY = "interrupted"
 
 
 def _chat_type(event: TelegramObject) -> str | None:
@@ -154,22 +159,31 @@ class ProcessingBlockerMiddleware(BaseMiddleware):
         if context is None:
             return await handler(event, data)
         state_data = await context.get_data()
-        if state_data.get("processing"):
-            await _notify_processing(event)
+        if state_data.get(PROCESSING_KEY):
+            if isinstance(event, Message):
+                await context.update_data({INTERRUPTED_KEY: True})
+            await _notify_processing(event, notified=bool(state_data.get(INTERRUPTED_KEY)))
             return None
         try:
-            await context.update_data(processing=True)
+            await context.update_data({PROCESSING_KEY: True, INTERRUPTED_KEY: False})
             return await handler(event, data)
         finally:
-            await context.update_data(processing=False)
+            await context.update_data({PROCESSING_KEY: False})
 
 
-async def _notify_processing(event: TelegramObject) -> None:
-    if isinstance(event, Message):
-        await event.answer(PROCESSING_TEXT)
-        return
+async def _notify_processing(event: TelegramObject, *, notified: bool) -> None:
+    """Одно «подождите» на запрос; сообщение сбрасывает «печатает…», вернуть его."""
     if isinstance(event, CallbackQuery):
         await event.answer(PROCESSING_TEXT, show_alert=True)
+        return
+    if not isinstance(event, Message):
+        return
+    user_id = event.from_user.id if event.from_user else None
+    logger.info("запрос отклонён: идёт предыдущий user_id=%s", user_id)
+    if not notified:
+        await event.answer(PROCESSING_TEXT)
+    if event.bot is not None:
+        await event.bot.send_chat_action(chat_id=event.chat.id, action=ChatAction.TYPING)
 
 
 async def _notify_limit(event: TelegramObject) -> None:

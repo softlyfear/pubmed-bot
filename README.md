@@ -62,8 +62,8 @@ docker compose --profile pubmed-bot up -d
 # Без профиля (контейнер не запустится)
 docker compose up -d
 
-# Просмотр логов
-docker compose logs -f bot
+# Просмотр логов (профиль обязателен, как и для up/down)
+docker compose --profile pubmed-bot logs -f bot
 
 # Остановка
 docker compose --profile pubmed-bot down

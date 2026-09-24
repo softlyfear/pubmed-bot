@@ -1,9 +1,11 @@
 """Поиск: «Найти» → запрос → список из 10, пагинация."""
 
 import logging
-from contextlib import AbstractAsyncContextManager, nullcontext
+import time
+from contextlib import AbstractAsyncContextManager, nullcontext, suppress
 
 from aiogram import Bot, F, Router
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
@@ -17,6 +19,7 @@ from pubmed_bot.bot.keyboards import (
     list_keyboard,
     start_keyboard,
 )
+from pubmed_bot.bot.middlewares import INTERRUPTED_KEY
 from pubmed_bot.bot.states import NoteStates, SearchStates
 from pubmed_bot.bot.texts import (
     ASK_QUERY,
@@ -63,6 +66,7 @@ async def on_query(
     if message.from_user is None:
         return
     status = await message.answer(SEARCH_PROGRESS)
+    started = time.monotonic()
     try:
         async with _typing(message.bot, message.chat.id):
             page = await search_service.run(message.from_user.id, query, page=1)
@@ -71,6 +75,7 @@ async def on_query(
             "перевод запроса недоступен user_id=%s",
             message.from_user.id,
         )
+        status = await _status_at_bottom(message, state, status)
         await status.edit_text(QUERY_TRANSLATE_FAILED)
         return
     except PubmedUnavailable:
@@ -78,8 +83,16 @@ async def on_query(
             "NCBI недоступен для user_id=%s",
             message.from_user.id if message.from_user else None,
         )
+        status = await _status_at_bottom(message, state, status)
         await status.edit_text(PUBMED_DOWN)
         return
+    logger.info(
+        "поиск готов user_id=%s за %.1f с, статей=%s",
+        message.from_user.id,
+        time.monotonic() - started,
+        len(page.items),
+    )
+    status = await _status_at_bottom(message, state, status)
     await _send_page(message, search_service, page, status=status)
 
 
@@ -152,6 +165,16 @@ def _typing(bot: Bot | None, chat_id: int) -> AbstractAsyncContextManager[object
     if bot is None:
         return nullcontext()
     return ChatActionSender.typing(chat_id=chat_id, bot=bot)
+
+
+async def _status_at_bottom(message: Message, state: FSMContext, status: Message) -> Message:
+    """Пользователь писал во время поиска: статус ушёл вверх, ответ — новым сообщением."""
+    data = await state.get_data()
+    if data.get(INTERRUPTED_KEY) is not True:
+        return status
+    with suppress(TelegramBadRequest):
+        await status.delete()
+    return await message.answer(SEARCH_PROGRESS)
 
 
 async def _send_page(

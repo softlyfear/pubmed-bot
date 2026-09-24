@@ -38,6 +38,12 @@ from pubmed_bot.services.search import SearchPage
 from pubmed_bot.services.subscriptions import SubscriptionView
 
 
+def _state() -> AsyncMock:
+    state = AsyncMock()
+    state.get_data = AsyncMock(return_value={})
+    return state
+
+
 def _tg_user() -> User:
     return User.model_validate({"id": 7, "is_bot": False, "first_name": "Ann"})
 
@@ -112,6 +118,7 @@ async def test_find_and_query_happy(monkeypatch: pytest.MonkeyPatch) -> None:
         )
     )
     search.save_list_message = AsyncMock()
+    state.get_data = AsyncMock(return_value={})
     await on_query(_message(text="glute"), state, search)
     search.run.assert_awaited()
     search.save_list_message.assert_awaited()
@@ -154,7 +161,7 @@ async def test_query_pubmed_down(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(Message, "edit_text", fake_edit)
     search = AsyncMock()
     search.run = AsyncMock(side_effect=PubmedUnavailable("down"))
-    await on_query(_message(text="knee"), AsyncMock(), search)
+    await on_query(_message(text="knee"), _state(), search)
     assert SEARCH_PROGRESS in answered
     assert PUBMED_DOWN in edited
     assert PUBMED_DOWN not in answered
