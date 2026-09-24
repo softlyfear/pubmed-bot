@@ -24,6 +24,12 @@ from pubmed_bot.bot.texts import (
 )
 
 
+def _state() -> AsyncMock:
+    state = AsyncMock()
+    state.get_data = AsyncMock(return_value={})
+    return state
+
+
 def test_search_module_imports() -> None:
     import pubmed_bot.bot.handlers.search as search_mod
 
@@ -60,7 +66,7 @@ async def test_cyrillic_mt_failure_tells_user() -> None:
     message.from_user.id = 1
     status = AsyncMock()
     message.answer = AsyncMock(return_value=status)
-    state = AsyncMock()
+    state = _state()
     search = AsyncMock()
     search.run = AsyncMock(side_effect=TranslationUnavailable("перевод недоступен"))
     await on_query(message, state, search)
@@ -74,7 +80,7 @@ async def test_slash_in_waiting_query_does_not_search() -> None:
     message = AsyncMock()
     message.text = "/help"
     message.from_user.id = 1
-    state = AsyncMock()
+    state = _state()
     search = AsyncMock()
     await on_query(message, state, search)
     search.run.assert_not_awaited()
@@ -90,7 +96,7 @@ async def test_plain_query_in_waiting_query_calls_run() -> None:
     message.from_user.id = 1
     status = AsyncMock()
     message.answer = AsyncMock(return_value=status)
-    state = AsyncMock()
+    state = _state()
     search = AsyncMock()
     search.run = AsyncMock(
         return_value=SearchPage(
@@ -116,7 +122,7 @@ async def test_find_non_message_still_asks_query(data: str) -> None:
     callback.from_user.id = 99
     callback.answer = AsyncMock()
     callback.bot.send_message = AsyncMock()
-    state = AsyncMock()
+    state = _state()
     await on_find(callback, state)
     state.set_state.assert_awaited_once_with(SearchStates.waiting_query)
     callback.bot.send_message.assert_awaited_once_with(99, ASK_QUERY)
@@ -130,7 +136,7 @@ async def test_find_non_message_without_bot_skips_ask() -> None:
     callback.from_user.id = 99
     callback.answer = AsyncMock()
     callback.bot = None
-    state = AsyncMock()
+    state = _state()
     await on_find(callback, state)
     state.set_state.assert_awaited_once_with(SearchStates.waiting_query)
 
@@ -195,7 +201,7 @@ async def test_query_sends_progress_then_edits_list() -> None:
     message.from_user.id = 7
     message.answer = answer
     status.edit_text = edit_text
-    state = AsyncMock()
+    state = _state()
     search = AsyncMock()
     search.run = run
     search.save_list_message = AsyncMock()
@@ -261,7 +267,7 @@ async def test_empty_run_attaches_new_query_button() -> None:
             no_more=False,
         )
     )
-    await on_query(message, AsyncMock(), search)
+    await on_query(message, _state(), search)
     assert captured["text"] == EMPTY_RESULT
     markup = captured["markup"]
     assert isinstance(markup, InlineKeyboardMarkup)
@@ -300,7 +306,29 @@ async def test_query_shows_typing_while_searching() -> None:
         return SearchPage(items=(), page=1, has_more=False, empty=True, no_more=False)
 
     search.run = AsyncMock(side_effect=run)
-    await on_query(message, AsyncMock(), search)
+    await on_query(message, _state(), search)
     message.bot.send_chat_action.assert_awaited_with(
         chat_id=1, action="typing", message_thread_id=None
     )
+
+
+@pytest.mark.asyncio
+async def test_query_interrupted_sends_result_below_spam() -> None:
+    from pubmed_bot.services.search import SearchPage
+
+    message = AsyncMock()
+    message.text = "knee"
+    message.from_user.id = 1
+    old_status = AsyncMock()
+    new_status = AsyncMock()
+    message.answer = AsyncMock(side_effect=[old_status, new_status])
+    state = AsyncMock()
+    state.get_data = AsyncMock(return_value={"interrupted": True})
+    search = AsyncMock()
+    search.run = AsyncMock(
+        return_value=SearchPage(items=(), page=1, has_more=False, empty=True, no_more=False)
+    )
+    await on_query(message, state, search)
+    old_status.delete.assert_awaited_once()
+    old_status.edit_text.assert_not_awaited()
+    assert new_status.edit_text.await_args.args == (EMPTY_RESULT,)

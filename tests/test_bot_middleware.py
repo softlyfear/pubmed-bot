@@ -241,8 +241,8 @@ class _FakeFsm:
     async def get_data(self) -> dict[str, object]:
         return dict(self.data)
 
-    async def update_data(self, **kwargs: object) -> None:
-        self.data.update(kwargs)
+    async def update_data(self, data: dict[str, object] | None = None, **kwargs: object) -> None:
+        self.data.update(data or {}, **kwargs)
 
 
 @pytest.mark.asyncio
@@ -260,17 +260,20 @@ async def test_new_query_while_processing_gets_wait(monkeypatch: pytest.MonkeyPa
 
     async def spam(event, data):
         inner.append(await middleware(handler, _message(text="second"), data))
+        inner.append(await middleware(handler, _message(text="third"), data))
         inner.append(await middleware(handler, _message(text="/start"), data))
+        assert fsm.data["interrupted"] is True
         return "first"
 
     async def handler(event, data):
         return "ok"
 
     assert await middleware(spam, _message(text="first"), data) == "first"
-    assert inner == [None, "ok"]
+    assert inner == [None, None, "ok"]
     assert answers == [PROCESSING_TEXT]
     assert fsm.data["processing"] is False
-    assert await middleware(handler, _message(text="third"), data) == "ok"
+    assert await middleware(handler, _message(text="fourth"), data) == "ok"
+    assert fsm.data["interrupted"] is False
 
 
 @pytest.mark.asyncio
