@@ -26,7 +26,7 @@ def test_settings_from_env(monkeypatch, tmp_path: Path) -> None:
     assert settings.ncbi_tool == "pubmed-bot"
     assert settings.deepl_auth_key == "test-deepl-key"
     assert settings.gemini_api_key == "gemini-test"
-    assert settings.gemini_model == "gemini-3.5-flash-lite"
+    assert settings.gemini_model == "gemini-flash-lite-latest"
     assert settings.sqlite_path == db_path
     assert settings.log_level == "INFO"
     assert settings.ncbi_max_rps == 8
@@ -72,7 +72,7 @@ def test_blank_gemini_model_defaults(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setenv("GEMINI_MODEL", "  ")
     monkeypatch.setenv("SQLITE_PATH", str(tmp_path / "db.sqlite"))
     settings = Settings(_env_file=None)  # type: ignore[call-arg]
-    assert settings.gemini_model == "gemini-3.5-flash-lite"
+    assert settings.gemini_model == "gemini-flash-lite-latest"
 
 
 def test_env_example_lists_gemini_names() -> None:

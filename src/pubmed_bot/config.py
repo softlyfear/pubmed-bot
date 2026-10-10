@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     ncbi_tool: str = "pubmed-bot"
     deepl_auth_key: str
     gemini_api_key: str
-    gemini_model: str = "gemini-3.5-flash-lite"
+    gemini_model: str = "gemini-flash-lite-latest"
     sqlite_path: Path
 
     log_level: str = "INFO"
@@ -52,7 +52,7 @@ class Settings(BaseSettings):
     @classmethod
     def _default_blank_gemini_model(cls, value: str) -> str:
         stripped = value.strip()
-        return stripped if stripped else "gemini-3.5-flash-lite"
+        return stripped if stripped else "gemini-flash-lite-latest"
 
 
 @lru_cache

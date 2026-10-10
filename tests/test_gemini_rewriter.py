@@ -94,7 +94,7 @@ async def test_rewrite_sends_prompt_temperature_and_tokens() -> None:
     assert result == "gluteal hypertrophy"
     assert len(completions.calls) == 1
     call = completions.calls[0]
-    assert call["model"] == "gemini-3.5-flash-lite"
+    assert call["model"] == "gemini-flash-lite-latest"
     assert call["temperature"] == GEMINI_TEMPERATURE
     assert call["max_tokens"] == GEMINI_MAX_TOKENS
     messages = call["messages"]

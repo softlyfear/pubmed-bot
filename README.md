@@ -41,7 +41,7 @@ src/
 - **Framework**: aiogram 3 (Telegram Bot API)
 - **СУБД**: SQLite с SQLAlchemy 2 (async)
 - **Переводы**: DeepL API
-- **AI**: Gemini 3.5 Flash Lite (переписание запросов)
+- **AI**: Gemini Flash Lite (`gemini-flash-lite-latest`) (переписание запросов)
 - **Научные API**: NCBI E-utilities
 - **Миграции**: Alembic
 - **Контейнеризация**: Docker + Docker Compose
