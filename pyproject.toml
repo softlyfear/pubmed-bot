@@ -2,6 +2,7 @@
 name = "pubmed-bot"
 version = "0.1.0"
 description = "Telegram bot for PubMed search and translation"
+license = "MIT"
 requires-python = "==3.14.*"
 dependencies = [
     "aiogram==3.30.0",
