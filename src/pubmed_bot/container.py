@@ -1,4 +1,4 @@
-"""Точка входа контейнера: права на volume SQLite, миграции, polling."""
+"""Точка входа контейнера: права на каталог SQLite, миграции, polling."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ def _data_dir() -> Path:
 
 
 def _drop_root(data_dir: Path) -> None:
-    """Named volume часто root:root; процесс бота — uid 1000."""
+    """Каталог данных часто принадлежит root; процесс бота — uid 1000."""
     if not hasattr(os, "geteuid") or os.geteuid() != 0:
         return
     data_dir.mkdir(parents=True, exist_ok=True)

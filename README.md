@@ -69,6 +69,8 @@ docker compose --profile pubmed-bot logs -f bot
 docker compose --profile pubmed-bot down
 ```
 
+Файл базы на хосте — `data/pubmed.db` в каталоге проекта. Compose монтирует `./data` в `/data`. В Git файл не входит.
+
 ## Конфигурация
 
 Создайте `.env` файл:

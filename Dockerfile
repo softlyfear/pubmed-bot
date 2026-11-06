@@ -29,5 +29,5 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     && chown app:app /data
 
 # Старт от root: container.py делает chown /data и setuid 1000.
-VOLUME ["/data"]
+# Каталог данных задаёт Compose: ./data монтируется в /data.
 ENTRYPOINT ["python", "-m", "pubmed_bot.container"]

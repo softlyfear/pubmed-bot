@@ -1,4 +1,4 @@
-"""Docker-манифесты: uv sync --frozen, volume SQLite, без Postgres. Без сборки образа."""
+"""Docker-манифесты: uv sync --frozen, SQLite в ./data, без Postgres. Без сборки образа."""
 
 from pathlib import Path
 
@@ -13,7 +13,7 @@ def test_dockerfile_installs_via_uv_sync_frozen() -> None:
     assert "python -m pip" not in text
     assert "uv.lock" in text
     assert "python:3.14" in text
-    assert 'VOLUME ["/data"]' in text
+    assert "VOLUME" not in text
     assert 'ENTRYPOINT ["python", "-m", "pubmed_bot.container"]' in text
     assert "USER app" not in text
     assert "chown -R app:app /app" not in text
@@ -32,7 +32,8 @@ def test_compose_bot_volume_no_postgres() -> None:
     assert "env_file:" in text
     assert ".env" in text
     assert "SQLITE_PATH: /data/pubmed.db" in text
-    assert "pubmed_data:/data" in text
+    assert "./data:/data" in text
+    assert "pubmed_data" not in text
     assert "no-new-privileges:true" in text
     assert "volumes:" in text
     assert "bot:" in text

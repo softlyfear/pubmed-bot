@@ -1,4 +1,4 @@
-# Один сервис бота. Файл SQLite на named volume. Профиль: pubmed-bot
+# Один сервис бота. Файл SQLite в ./data проекта. Профиль: pubmed-bot
 services:
   bot:
     build: .
@@ -9,12 +9,9 @@ services:
     environment:
       SQLITE_PATH: /data/pubmed.db
     volumes:
-      - pubmed_data:/data
+      - ./data:/data
     init: true
     restart: unless-stopped
     stop_grace_period: 30s
     security_opt:
       - no-new-privileges:true
-
-volumes:
-  pubmed_data:
