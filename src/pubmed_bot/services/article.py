@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from pubmed_bot.adapters.db.repositories import SearchRepo
 from pubmed_bot.adapters.db.session import session_scope
 from pubmed_bot.adapters.ncbi.client import PubmedClient
-from pubmed_bot.adapters.ncbi.parse import parse_pmc_xml, parse_pubmed_xml
+from pubmed_bot.adapters.ncbi.parse import article_by_pmid, parse_pmc_xml, parse_pubmed_xml
 from pubmed_bot.domain.enums import TranslationKind
 from pubmed_bot.domain.exceptions import PubmedUnavailable, TranslationUnavailable
 from pubmed_bot.domain.models import AbstractSection, Article
@@ -31,6 +31,7 @@ class OpenedArticle:
     fulltext_ru: tuple[str, ...] | None
     has_oa: bool
     translation_failed: bool
+    oa_unavailable: bool = False
 
     def body_paragraphs(self) -> tuple[str, ...]:
         """Абзацы OA: перевод, иначе оригинал из PMC."""
@@ -65,7 +66,8 @@ class ArticleService:
             )
             raise
         parsed = parse_pubmed_xml(xml)
-        if not parsed:
+        article = article_by_pmid(parsed, pmid)
+        if article is None:
             await write_audit(
                 self._session_maker,
                 event="error",
@@ -74,8 +76,7 @@ class ArticleService:
                 detail="not_found",
             )
             return None
-        article = parsed[0]
-        paragraphs = await self._load_pmc(article)
+        paragraphs, oa_unavailable = await self._load_pmc(article)
         has_oa = bool(paragraphs)
         article = replace(article, fulltext_paragraphs=paragraphs)
         async with session_scope(self._session_maker) as session:
@@ -106,16 +107,18 @@ class ArticleService:
             fulltext_ru=fulltext_ru,
             has_oa=has_oa,
             translation_failed=failed_title or failed_abs or failed_ft,
+            oa_unavailable=oa_unavailable,
         )
 
-    async def _load_pmc(self, article: Article) -> tuple[str, ...]:
+    async def _load_pmc(self, article: Article) -> tuple[tuple[str, ...], bool]:
+        """Paragraphs and whether the OA fetch failed (distinct from no OA body)."""
         if not article.pmcid:
-            return ()
+            return (), False
         try:
             xml = await self._pubmed.efetch([article.pmcid], db="pmc")
         except PubmedUnavailable:
-            return ()
-        return parse_pmc_xml(xml)
+            return (), True
+        return parse_pmc_xml(xml), False
 
     async def _translate_abstract(
         self,

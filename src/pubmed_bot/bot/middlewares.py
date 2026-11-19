@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import Awaitable, Callable
 from typing import Any, override
@@ -146,6 +147,16 @@ def _guarded(event: TelegramObject) -> bool:
 class ProcessingBlockerMiddleware(BaseMiddleware):
     """Блокирует кнопки и новые запросы, пока выполняется предыдущий."""
 
+    def __init__(self) -> None:
+        self._locks: dict[int, asyncio.Lock] = {}
+
+    def _lock_for(self, user_id: int) -> asyncio.Lock:
+        lock = self._locks.get(user_id)
+        if lock is None:
+            lock = asyncio.Lock()
+            self._locks[user_id] = lock
+        return lock
+
     @override
     async def __call__(
         self,
@@ -158,17 +169,36 @@ class ProcessingBlockerMiddleware(BaseMiddleware):
         context = data.get("state")
         if context is None:
             return await handler(event, data)
+        user = _telegram_user(event)
+        lock = self._lock_for(user.id) if user is not None else None
+        if lock is not None:
+            async with lock:
+                rejected = await self._reject_if_busy(event, context)
+            if rejected:
+                return None
+            try:
+                return await handler(event, data)
+            finally:
+                async with lock:
+                    await context.update_data({PROCESSING_KEY: False})
+        rejected = await self._reject_if_busy(event, context)
+        if rejected:
+            return None
+        try:
+            return await handler(event, data)
+        finally:
+            await context.update_data({PROCESSING_KEY: False})
+
+    async def _reject_if_busy(self, event: TelegramObject, context: Any) -> bool:
+        """Set the in-progress flag, or reject when another update already holds it."""
         state_data = await context.get_data()
         if state_data.get(PROCESSING_KEY):
             if isinstance(event, Message):
                 await context.update_data({INTERRUPTED_KEY: True})
             await _notify_processing(event, notified=bool(state_data.get(INTERRUPTED_KEY)))
-            return None
-        try:
-            await context.update_data({PROCESSING_KEY: True, INTERRUPTED_KEY: False})
-            return await handler(event, data)
-        finally:
-            await context.update_data({PROCESSING_KEY: False})
+            return True
+        await context.update_data({PROCESSING_KEY: True, INTERRUPTED_KEY: False})
+        return False
 
 
 async def _notify_processing(event: TelegramObject, *, notified: bool) -> None:

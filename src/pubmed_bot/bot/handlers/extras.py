@@ -19,6 +19,7 @@ from pubmed_bot.bot.keyboards import (
     CALLBACK_OPEN_PREFIX,
     article_keyboard,
     favorites_list_keyboard,
+    is_pmid,
     notes_list_keyboard,
 )
 from pubmed_bot.bot.states import NoteStates
@@ -35,6 +36,7 @@ from pubmed_bot.bot.texts import (
     NOTE_PROMPT_EDIT,
     NOTE_SAVED,
     NOTE_TOO_LONG,
+    NOTE_UNCHANGED,
     NOTES_EMPTY,
     PUBMED_DOWN,
 )
@@ -87,7 +89,7 @@ async def on_notes_list(callback: CallbackQuery, notes_service: NotesService) ->
 @router.callback_query(F.data.startswith(CALLBACK_FAV_ADD_PREFIX))
 async def on_fav_add(callback: CallbackQuery, favorites_service: FavoritesService) -> None:
     pmid = (callback.data or "").removeprefix(CALLBACK_FAV_ADD_PREFIX).strip()
-    if not pmid or callback.from_user is None:
+    if not is_pmid(pmid) or callback.from_user is None:
         await callback.answer()
         return
     try:
@@ -109,7 +111,7 @@ async def on_fav_add(callback: CallbackQuery, favorites_service: FavoritesServic
 @router.callback_query(F.data.startswith(CALLBACK_FAV_DEL_PREFIX))
 async def on_fav_remove(callback: CallbackQuery, favorites_service: FavoritesService) -> None:
     pmid = (callback.data or "").removeprefix(CALLBACK_FAV_DEL_PREFIX).strip()
-    if not pmid or callback.from_user is None:
+    if not is_pmid(pmid) or callback.from_user is None:
         await callback.answer()
         return
     removed = await favorites_service.remove(callback.from_user.id, pmid)
@@ -158,7 +160,7 @@ async def on_note_start(
     notes_service: NotesService,
 ) -> None:
     pmid = (callback.data or "").removeprefix(CALLBACK_NOTE_PREFIX).strip()
-    if not pmid or callback.from_user is None:
+    if not is_pmid(pmid) or callback.from_user is None:
         await callback.answer()
         return
     existing = await notes_service.get(callback.from_user.id, pmid)
@@ -181,9 +183,15 @@ async def on_note_body(
 ) -> None:
     data = await state.get_data()
     pmid = data.get("note_pmid")
-    if not pmid or message.from_user is None:
+    if not isinstance(pmid, str) or not is_pmid(pmid) or message.from_user is None:
         await state.clear()
         return
+    if not (message.text or "").strip():
+        existing = await notes_service.get(message.from_user.id, pmid)
+        if existing:
+            await state.clear()
+            await message.answer(NOTE_UNCHANGED)
+            return
     try:
         await notes_service.save(message.from_user.id, pmid, message.text or "")
     except NoteRejected as exc:
@@ -199,7 +207,7 @@ async def on_note_body(
 @router.callback_query(F.data.startswith(CALLBACK_NOTE_DEL_PREFIX))
 async def on_note_remove(callback: CallbackQuery, notes_service: NotesService) -> None:
     pmid = (callback.data or "").removeprefix(CALLBACK_NOTE_DEL_PREFIX).strip()
-    if not pmid or callback.from_user is None:
+    if not is_pmid(pmid) or callback.from_user is None:
         await callback.answer()
         return
     await notes_service.delete(callback.from_user.id, pmid)
@@ -225,7 +233,7 @@ async def on_export(
     article_service: ArticleService,
 ) -> None:
     pmid = (callback.data or "").removeprefix(CALLBACK_EXPORT_PREFIX).strip()
-    if not pmid or callback.from_user is None:
+    if not is_pmid(pmid) or callback.from_user is None:
         await callback.answer()
         return
     await callback.answer()

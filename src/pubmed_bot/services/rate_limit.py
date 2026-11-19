@@ -68,6 +68,11 @@ class PerUserWindow:
         cutoff = now - self._window_sec
         while queue and queue[0] <= cutoff:
             queue.popleft()
+        if len(self._hits) > 1024:
+            stale = [key for key, hits in self._hits.items() if not hits or hits[-1] <= cutoff]
+            for key in stale:
+                self._hits.pop(key, None)
+            queue = self._hits[user_id]
         if len(queue) >= self._limit:
             return False
         queue.append(now)

@@ -110,6 +110,16 @@ _PUB_TYPE_RULES: tuple[tuple[str, PubTypeLabel], ...] = (
 )
 
 
+def article_by_pmid(articles: Sequence[Article], pmid: str) -> Article | None:
+    """Pick the requested PMID. A single unmatched article is kept for NCBI id normalization."""
+    for article in articles:
+        if article.pmid == pmid:
+            return article
+    if len(articles) == 1:
+        return articles[0]
+    return None
+
+
 def parse_esummary(payload: Mapping[str, Any]) -> tuple[ArticleListItem, ...]:
     """Карточки списка из JSON ESummary. Порядок как в result.uids."""
     result = payload.get("result")
@@ -400,7 +410,13 @@ def _normalize_doi(value: str | None) -> str | None:
         return None
     text = value.strip()
     lower = text.lower()
-    for prefix in ("https://doi.org/", "http://doi.org/", "doi:"):
+    for prefix in (
+        "https://doi.org/",
+        "http://doi.org/",
+        "https://dx.doi.org/",
+        "http://dx.doi.org/",
+        "doi:",
+    ):
         if lower.startswith(prefix):
             text = text[len(prefix) :].strip()
             break

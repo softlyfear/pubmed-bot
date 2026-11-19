@@ -1,5 +1,7 @@
 """Inline-клавиатуры. Slash-команда только /start."""
 
+import re
+
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from pubmed_bot.bot.texts import BTN_FAV_ADD, BTN_FAV_REMOVE, BTN_NEW_QUERY, BTN_NOTES
@@ -29,6 +31,12 @@ CALLBACK_NOTE_PREFIX = "n:"
 CALLBACK_NOTE_DEL_PREFIX = "nd:"
 CALLBACK_EXPORT_PREFIX = "x:"
 MAX_CALLBACK_BYTES = 64
+_PMID_RE = re.compile(r"[1-9]\d{0,15}\Z")
+
+
+def is_pmid(value: str) -> bool:
+    """PubMed PMID: digits, no leading zero, fits a callback and a filename."""
+    return _PMID_RE.fullmatch(value) is not None
 
 
 def article_callback_data(pmid: str) -> str:
@@ -97,10 +105,12 @@ def list_keyboard(
     if extra:
         rows.append(extra)
     if with_new_query:
-        rows.append([
-            InlineKeyboardButton(text=BTN_NEW_QUERY, callback_data=CALLBACK_FIND),
-            InlineKeyboardButton(text="Главное меню", callback_data=CALLBACK_MAIN),
-        ])
+        rows.append(
+            [
+                InlineKeyboardButton(text=BTN_NEW_QUERY, callback_data=CALLBACK_FIND),
+                InlineKeyboardButton(text="Главное меню", callback_data=CALLBACK_MAIN),
+            ]
+        )
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -108,13 +118,15 @@ def favorites_list_keyboard(pmids: tuple[str, ...]) -> InlineKeyboardMarkup:
     """Номера `o:<pmid>` с кнопками удаления; без поиска и подписки."""
     rows: list[list[InlineKeyboardButton]] = []
     for index, pmid in enumerate(pmids, start=1):
-        rows.append([
-            InlineKeyboardButton(text=str(index), callback_data=article_callback_data(pmid)),
-            InlineKeyboardButton(
-                text="Удалить",
-                callback_data=fav_del_callback_data(pmid),
-            ),
-        ])
+        rows.append(
+            [
+                InlineKeyboardButton(text=str(index), callback_data=article_callback_data(pmid)),
+                InlineKeyboardButton(
+                    text="Удалить",
+                    callback_data=fav_del_callback_data(pmid),
+                ),
+            ]
+        )
     rows.append([InlineKeyboardButton(text="Главное меню", callback_data=CALLBACK_MAIN)])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
@@ -123,11 +135,13 @@ def notes_list_keyboard(pmids: tuple[str, ...]) -> InlineKeyboardMarkup:
     """Три кнопки для каждой заметки: открыть статью, редактировать, удалить."""
     rows: list[list[InlineKeyboardButton]] = []
     for index, pmid in enumerate(pmids, start=1):
-        rows.append([
-            InlineKeyboardButton(text=str(index), callback_data=article_callback_data(pmid)),
-            InlineKeyboardButton(text="Править", callback_data=note_callback_data(pmid)),
-            InlineKeyboardButton(text="Удалить", callback_data=note_del_callback_data(pmid)),
-        ])
+        rows.append(
+            [
+                InlineKeyboardButton(text=str(index), callback_data=article_callback_data(pmid)),
+                InlineKeyboardButton(text="Править", callback_data=note_callback_data(pmid)),
+                InlineKeyboardButton(text="Удалить", callback_data=note_del_callback_data(pmid)),
+            ]
+        )
     rows.append([InlineKeyboardButton(text="Главное меню", callback_data=CALLBACK_MAIN)])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
@@ -173,8 +187,10 @@ def article_keyboard(
                 InlineKeyboardButton(text="Экспорт", callback_data=export_callback_data(pmid)),
             ]
         )
-    rows.append([
-        InlineKeyboardButton(text="Новый запрос", callback_data=CALLBACK_FIND),
-        InlineKeyboardButton(text="Главное меню", callback_data=CALLBACK_MAIN),
-    ])
+    rows.append(
+        [
+            InlineKeyboardButton(text="Новый запрос", callback_data=CALLBACK_FIND),
+            InlineKeyboardButton(text="Главное меню", callback_data=CALLBACK_MAIN),
+        ]
+    )
     return InlineKeyboardMarkup(inline_keyboard=rows)

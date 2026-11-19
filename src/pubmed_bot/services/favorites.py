@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from pubmed_bot.adapters.db.repositories import FavoriteRepo, SearchRepo
 from pubmed_bot.adapters.db.session import session_scope
 from pubmed_bot.adapters.ncbi.client import PubmedClient
-from pubmed_bot.adapters.ncbi.parse import parse_pubmed_xml
+from pubmed_bot.adapters.ncbi.parse import article_by_pmid, parse_pubmed_xml
 from pubmed_bot.domain.enums import TranslationKind
 from pubmed_bot.domain.exceptions import TranslationUnavailable
 from pubmed_bot.domain.models import ArticleListItem
@@ -74,10 +74,10 @@ class FavoritesService:
                 if item.pmid == pmid:
                     return item.title_en, item.title_ru
         xml = await self._pubmed.efetch([pmid], db="pubmed")
-        parsed = parse_pubmed_xml(xml)
-        if not parsed:
+        article = article_by_pmid(parse_pubmed_xml(xml), pmid)
+        if article is None:
             return None
-        title_en = parsed[0].title_en
+        title_en = article.title_en
         try:
             title_ru = await self._translation.translate(
                 pmid,

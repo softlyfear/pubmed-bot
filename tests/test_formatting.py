@@ -13,6 +13,30 @@ from pubmed_bot.domain.models import AbstractSection, Article, ArticleListItem
 from pubmed_bot.services.article import OpenedArticle
 
 
+def test_format_list_keeps_rows_when_titles_expand() -> None:
+    items = tuple(
+        ArticleListItem(pmid=str(i), title_en='"' * 80, title_ru='"' * 80) for i in range(1, 11)
+    )
+    html = format_list(items)
+    assert len(html) <= TELEGRAM_MESSAGE_LIMIT
+    for index in range(1, 11):
+        assert f"{index}." in html
+
+
+def test_pmcid_special_characters_stay_inside_href() -> None:
+    opened = OpenedArticle(
+        article=Article(pmid="1", title_en="T", pmcid='x"><b>'),
+        title_ru=None,
+        abstract_ru=None,
+        fulltext_ru=None,
+        has_oa=False,
+        translation_failed=False,
+    )
+    html = format_article_messages(opened)[0]
+    assert 'href="https://www.ncbi.nlm.nih.gov/pmc/articles/x%22%3E%3Cb%3E/"' in html
+    assert "&lt;b&gt;" in html
+
+
 def test_list_escapes_ncbi_title() -> None:
     items = (
         ArticleListItem(

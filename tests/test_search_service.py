@@ -38,6 +38,7 @@ class FakePubmed:
         self.empty_abstract: set[str] = set()
         self.error: Exception | None = None
         self.summary_payload: dict[str, object] | None = None
+        self.total_count = 42
 
     async def esearch(
         self,
@@ -53,7 +54,7 @@ class FakePubmed:
         if self.error is not None:
             raise self.error
         pmids = self.offset_pmids.get(offset, ())
-        return ESearchResult(pmids=pmids, count=42, retstart=offset, retmax=10)
+        return ESearchResult(pmids=pmids, count=self.total_count, retstart=offset, retmax=10)
 
     async def esummary(self, pmids: Sequence[str]) -> dict[str, object]:
         if self.summary_payload is not None:
@@ -332,6 +333,22 @@ async def test_skips_empty_abstract_and_fills_from_next_window(sqlite_file: Path
         async with session_factory(engine)() as session:
             search = (await session.scalars(select(Search))).one()
             assert search.ncbi_retstart == 12
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_exact_ncbi_count_does_not_offer_more(sqlite_file: Path) -> None:
+    service, pubmed, _translation, engine = _service(sqlite_file)
+    try:
+        await _seed_user(engine)
+        pubmed.total_count = 10
+        page = await service.run(7, "knee")
+        assert len(page.items) == 10
+        assert page.has_more is False
+        listed = await service.current_list(7)
+        assert listed is not None
+        assert listed.has_more is False
     finally:
         await engine.dispose()
 

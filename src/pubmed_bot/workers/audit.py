@@ -9,6 +9,7 @@ from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from pubmed_bot.services.audit import purge_old_logs
+from pubmed_bot.workers.subscriptions import MISFIRE_GRACE_SECONDS
 
 JOB_ID = "pubmed-audit-purge"
 
@@ -30,4 +31,5 @@ def add_purge_job(
         replace_existing=True,
         max_instances=1,
         coalesce=True,
+        misfire_grace_time=MISFIRE_GRACE_SECONDS,
     )

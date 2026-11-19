@@ -239,6 +239,25 @@ async def test_query_rewriter_overrides_literal_deepl(sqlite_file: Path) -> None
 
 
 @pytest.mark.asyncio
+@pytest.mark.asyncio
+async def test_query_rewrite_outage_is_not_cached(sqlite_file: Path) -> None:
+    svc, fake, rewriter, engine = _service(sqlite_file)
+    try:
+        fake.result = "buttock growth"
+        rewriter.error = QueryRewriteUnavailable("rewrite недоступен")
+        assert await svc.translate_query("рост ягодиц") == "buttock growth"
+        rewriter.error = None
+        rewriter.result = "gluteal hypertrophy"
+        assert await svc.translate_query("рост ягодиц") == "gluteal hypertrophy"
+        assert rewriter.calls == [
+            ("рост ягодиц", "buttock growth"),
+            ("рост ягодиц", "buttock growth"),
+        ]
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
 async def test_query_rewriter_fail_open_uses_draft(sqlite_file: Path) -> None:
     svc, fake, rewriter, engine = _service(sqlite_file)
     try:

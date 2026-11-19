@@ -146,6 +146,7 @@ class SearchRepo:
         page: int,
         items: tuple[ArticleListItem, ...],
         ncbi_retstart: int = 0,
+        has_more: bool | None = None,
         list_chat_id: int | None = None,
         list_message_id: int | None = None,
     ) -> Search:
@@ -160,6 +161,7 @@ class SearchRepo:
             query_en=query_en,
             page=page,
             ncbi_retstart=ncbi_retstart,
+            has_more=has_more,
             list_chat_id=list_chat_id,
             list_message_id=list_message_id,
         )
@@ -202,6 +204,19 @@ class SearchRepo:
             return None
         rows = sorted(search.results, key=lambda row: row.position)
         return tuple(_item_from_row(row) for row in rows), search.page
+
+    async def current_page_state(
+        self,
+        telegram_user_id: int,
+    ) -> tuple[tuple[ArticleListItem, ...], int, bool | None] | None:
+        """Items, page, and stored has_more (None if the row predates the column)."""
+        search = await self.get_current(telegram_user_id)
+        if search is None:
+            return None
+        rows = sorted(search.results, key=lambda row: row.position)
+        stored = search.has_more
+        has_more = None if stored is None else bool(stored)
+        return tuple(_item_from_row(row) for row in rows), search.page, has_more
 
     async def mark_viewed(self, telegram_user_id: int, pmid: str) -> None:
         search = await self.get_current(telegram_user_id)

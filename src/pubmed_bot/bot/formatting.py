@@ -2,9 +2,11 @@
 
 import re
 from html import escape
+from urllib.parse import quote
 
 from pubmed_bot.bot.texts import (
     FULLTEXT_IN_FILE,
+    FULLTEXT_TEMPORARILY_UNAVAILABLE,
     FULLTEXT_UNAVAILABLE,
     TEXT_UNAVAILABLE,
     TRANSLATION_MISSING,
@@ -28,13 +30,16 @@ def format_list(items: tuple[ArticleListItem, ...]) -> str:
         return ""
     max_title = 240
     html = _render_list(items, max_title)
-    while len(html) > TELEGRAM_MESSAGE_LIMIT and max_title > _MIN_TITLE:
-        max_title = max(_MIN_TITLE, max_title - 40)
+    # Shrink every title before dropping rows, so button numbers stay aligned.
+    while len(html) > TELEGRAM_MESSAGE_LIMIT and max_title > 8:
+        max_title = max(8, max_title - 16)
         html = _render_list(items, max_title)
+    if len(html) <= TELEGRAM_MESSAGE_LIMIT:
+        return html
     kept = list(items)
     while len(html) > TELEGRAM_MESSAGE_LIMIT and len(kept) > 1:
         kept.pop()
-        html = _render_list(tuple(kept), _MIN_TITLE)
+        html = _render_list(tuple(kept), 8)
     max_title = _MIN_TITLE
     while len(html) > TELEGRAM_MESSAGE_LIMIT and max_title > 8:
         max_title -= 4
@@ -106,6 +111,8 @@ def article_blocks(opened: OpenedArticle) -> list[str]:
     oa_paras = opened.body_paragraphs()
     if opened.has_oa and oa_paras:
         blocks.append(escape(FULLTEXT_IN_FILE))
+    elif opened.oa_unavailable:
+        blocks.append(escape(FULLTEXT_TEMPORARILY_UNAVAILABLE))
     elif abstract:
         blocks.append(escape(FULLTEXT_UNAVAILABLE))
     else:
@@ -173,13 +180,19 @@ def _abstract_blocks(sections: tuple[AbstractSection, ...]) -> list[str]:
 
 
 def _links(article: Article) -> str:
-    parts = [f'<a href="{PUBMED_URL.format(pmid=article.pmid)}">PubMed</a>']
+    pmid_url = PUBMED_URL.format(pmid=quote(article.pmid, safe=""))
+    parts = [f'<a href="{_html_href(pmid_url)}">PubMed</a>']
     if article.doi:
-        doi = escape(article.doi)
-        parts.append(f'<a href="{DOI_URL.format(doi=doi)}">{doi}</a>')
+        doi_url = DOI_URL.format(doi=quote(article.doi, safe="/"))
+        parts.append(f'<a href="{_html_href(doi_url)}">{escape(article.doi)}</a>')
     if article.pmcid:
-        parts.append(f'<a href="{PMC_URL.format(pmcid=article.pmcid)}">{escape(article.pmcid)}</a>')
+        pmc_url = PMC_URL.format(pmcid=quote(article.pmcid, safe=""))
+        parts.append(f'<a href="{_html_href(pmc_url)}">{escape(article.pmcid)}</a>')
     return " · ".join(parts)
+
+
+def _html_href(url: str) -> str:
+    return escape(url, quote=True)
 
 
 def _split_oversized(block: str, budget: int) -> list[str]:
@@ -256,7 +269,7 @@ def _render_list(items: tuple[ArticleListItem, ...], max_title: int) -> str:
         lines = [f"{index}. <b>{title_en}</b>", title_ru]
         meta = _meta_line(item)
         if meta:
-            lines.append(escape(meta))
+            lines.append(escape(_clip(meta, 48)))
         if item.viewed:
             lines.append("<i>просмотрено</i>")
         blocks.append("\n".join(lines))

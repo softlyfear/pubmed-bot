@@ -6,7 +6,7 @@ import httpx
 import pytest
 import respx
 
-from pubmed_bot.adapters.ncbi.client import EUTILS_BASE, NcbiEutilsClient
+from pubmed_bot.adapters.ncbi.client import _MAX_BACKOFF_SECONDS, EUTILS_BASE, NcbiEutilsClient
 from pubmed_bot.config import Settings
 from pubmed_bot.domain.enums import SearchSort
 from pubmed_bot.domain.exceptions import PubmedUnavailable
@@ -141,6 +141,44 @@ async def test_429_then_unavailable() -> None:
         with pytest.raises(PubmedUnavailable):
             await client.esearch("knee")
     assert respx.calls.call_count == 3
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_retry_after_infinity_is_capped() -> None:
+    waits: list[float] = []
+
+    async def record(seconds: float) -> None:
+        waits.append(seconds)
+
+    respx.get(ESEARCH).mock(return_value=httpx.Response(429, headers={"Retry-After": "inf"}))
+    async with httpx.AsyncClient() as http:
+        client = NcbiEutilsClient(
+            _settings(),
+            TokenBucket(1000.0),
+            http=http,
+            retry_backoff_base=0.0,
+            sleep=record,
+        )
+        with pytest.raises(PubmedUnavailable):
+            await client.esearch("knee")
+    assert waits
+    assert max(waits) <= _MAX_BACKOFF_SECONDS
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_long_efetch_uses_post() -> None:
+    route = respx.post(EFETCH).mock(return_value=httpx.Response(200, text="<ok/>"))
+    ids = tuple(f"{index:08d}" for index in range(1, 201))
+    async with httpx.AsyncClient() as http:
+        client = _client(http)
+        text = await client.efetch(ids)
+    assert text == "<ok/>"
+    assert route.called
+    body = route.calls.last.request.content.decode()
+    assert "id=" in body
+    assert "00000001" in body
 
 
 @pytest.mark.asyncio

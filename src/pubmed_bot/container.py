@@ -19,14 +19,21 @@ def _data_dir() -> Path:
     return Path(raw).expanduser().parent
 
 
+def _chown_tree(data_dir: Path, uid: int, gid: int) -> None:
+    """Own the data directory. Do not follow symlinks planted in the volume."""
+    os.chown(data_dir, uid, gid)
+    for path in data_dir.rglob("*"):
+        if path.is_symlink():
+            continue
+        os.chown(path, uid, gid, follow_symlinks=False)
+
+
 def _drop_root(data_dir: Path) -> None:
     """Каталог данных часто принадлежит root; процесс бота — uid 1000."""
     if not hasattr(os, "geteuid") or os.geteuid() != 0:
         return
     data_dir.mkdir(parents=True, exist_ok=True)
-    os.chown(data_dir, _APP_UID, _APP_GID)
-    for path in data_dir.rglob("*"):
-        os.chown(path, _APP_UID, _APP_GID)
+    _chown_tree(data_dir, _APP_UID, _APP_GID)
     if hasattr(os, "setgroups"):
         os.setgroups([])
     os.setgid(_APP_GID)

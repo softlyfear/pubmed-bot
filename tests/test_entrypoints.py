@@ -23,7 +23,7 @@ from pubmed_bot.adapters.translator.deepl import DeeplTranslator
 from pubmed_bot.bot.factory import create_dispatcher
 from pubmed_bot.bot.keyboards import article_callback_data
 from pubmed_bot.config import Settings, get_settings
-from pubmed_bot.container import _data_dir, _drop_root
+from pubmed_bot.container import _chown_tree, _data_dir, _drop_root
 from pubmed_bot.container import main as container_main
 from pubmed_bot.domain.exceptions import TranslationUnavailable
 from pubmed_bot.main import run_polling
@@ -108,6 +108,25 @@ def test_drop_root_as_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
     assert os.environ["HOME"] == "/app"
 
 
+def test_chown_tree_does_not_follow_symlinks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[tuple[str, bool]] = []
+
+    def fake_chown(path: object, uid: int, gid: int, follow_symlinks: bool = True) -> None:
+        calls.append((Path(path).name, follow_symlinks))
+
+    monkeypatch.setattr(os, "chown", fake_chown)
+    data = tmp_path / "data"
+    data.mkdir()
+    (data / "pubmed.db").write_text("x", encoding="utf-8")
+    (data / "link").symlink_to(tmp_path / "outside")
+    _chown_tree(data, 1000, 1000)
+    names = [name for name, _follow in calls]
+    assert "link" not in names
+    assert ("pubmed.db", False) in calls
+
+
 def test_container_main_runs_upgrade_and_polling(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -135,7 +154,9 @@ async def test_run_polling_starts_and_shuts_down(
     scheduler = MagicMock()
     monkeypatch.setattr("pubmed_bot.main.build_scheduler", lambda *a, **k: scheduler)
     monkeypatch.setattr("pubmed_bot.main.add_purge_job", lambda *a, **k: None)
-    monkeypatch.setattr("pubmed_bot.main.SubscriptionWorker", MagicMock())
+    worker = MagicMock()
+    worker.run_if_due = AsyncMock()
+    monkeypatch.setattr("pubmed_bot.main.SubscriptionWorker", lambda *a, **k: worker)
     await run_polling()
     dispatcher.start_polling.assert_awaited()
     scheduler.start.assert_called_once()

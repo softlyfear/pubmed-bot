@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 
 from aiogram import Bot
 from aiogram.client.default import DefaultBotProperties
@@ -24,6 +25,8 @@ from pubmed_bot.services.subscriptions import SubscriptionsService
 from pubmed_bot.services.translation import TranslationService
 from pubmed_bot.workers.audit import add_purge_job
 from pubmed_bot.workers.subscriptions import SubscriptionWorker, build_scheduler
+
+logger = logging.getLogger(__name__)
 
 
 async def run_polling() -> None:
@@ -61,9 +64,17 @@ async def run_polling() -> None:
     scheduler = build_scheduler(settings.subscription_hour_utc, worker)
     add_purge_job(scheduler, settings.subscription_hour_utc, session_maker)
     scheduler.start()
+    catch_up = asyncio.create_task(worker.run_if_due(settings.subscription_hour_utc))
     try:
         await dispatcher.start_polling(bot)
     finally:
+        catch_up.cancel()
+        try:
+            await catch_up
+        except asyncio.CancelledError:
+            pass
+        except Exception:
+            logger.exception("сбой догонки подписок")
         scheduler.shutdown(wait=False)
         await pubmed.aclose()
         await bot.session.close()

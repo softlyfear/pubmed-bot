@@ -9,10 +9,12 @@ PMC_URL = "https://www.ncbi.nlm.nih.gov/pmc/articles/{pmcid}/"
 _TRANSLATION_MISSING = "перевод недоступен"
 _TEXT_UNAVAILABLE = "текст недоступен"
 _FULLTEXT_UNAVAILABLE = "полный текст недоступен (только PMC Open Access, не PDF журнала)"
+_FULLTEXT_TEMPORARILY_UNAVAILABLE = "полный текст временно недоступен, попробуйте позже"
 
 
 def export_filename(pmid: str) -> str:
-    return f"pubmed-{pmid}.txt"
+    safe = "".join(char for char in pmid if char.isdigit()) or "article"
+    return f"pubmed-{safe}.txt"
 
 
 def render_export_txt(opened: OpenedArticle) -> str:
@@ -68,6 +70,9 @@ def render_export_txt(opened: OpenedArticle) -> str:
         if opened.fulltext_ru is None and opened.translation_failed:
             lines.append("")
             lines.append(_TRANSLATION_MISSING)
+    elif opened.oa_unavailable:
+        lines.append("")
+        lines.append(_FULLTEXT_TEMPORARILY_UNAVAILABLE)
     elif abstract:
         lines.append("")
         lines.append(_FULLTEXT_UNAVAILABLE)

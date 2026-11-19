@@ -79,12 +79,16 @@ class TranslationService:
         else:
             draft = query
         query_en = draft
+        rewrite_failed = False
         try:
             rewritten = (await self._rewriter.rewrite(query, draft)).strip()
         except QueryRewriteUnavailable:
+            # Transient outage must not pin the unrewritten draft in cache.
             rewritten = ""
+            rewrite_failed = True
         if rewritten and not _rewrite_rejected(rewritten):
             query_en = rewritten
-        async with session_scope(self._session_maker) as session:
-            await QueryTranslationCacheRepo(session).put(digest, query_en)
+        if not rewrite_failed:
+            async with session_scope(self._session_maker) as session:
+                await QueryTranslationCacheRepo(session).put(digest, query_en)
         return query_en

@@ -110,41 +110,47 @@ async def on_more(callback: CallbackQuery, search_service: SearchService) -> Non
     if callback.from_user is None:
         await callback.answer()
         return
+    # Acknowledge before NCBI: a slow page otherwise expires the callback and
+    # the already committed next page is never shown.
+    await callback.answer()
     try:
         async with _typing(callback.bot, callback.from_user.id):
             page = await search_service.next_page(callback.from_user.id)
     except PubmedUnavailable:
         logger.warning(
             "NCBI недоступен на «ещё» user_id=%s",
-            callback.from_user.id if callback.from_user else None,
+            callback.from_user.id,
         )
-        await callback.answer(PUBMED_DOWN, show_alert=True)
+        await _reply(callback, PUBMED_DOWN)
         return
     if page is None:
-        await callback.answer()
         return
     if page.no_more:
-        await callback.answer(NO_MORE, show_alert=True)
+        await _reply(callback, NO_MORE)
         return
-    await callback.answer()
     if page.empty:
-        if callback.message and isinstance(callback.message, Message):
-            await callback.message.answer(EMPTY_RESULT)
+        await _reply(callback, EMPTY_RESULT)
         return
     if callback.message and isinstance(callback.message, Message):
-        await callback.message.edit_text(
-            format_list(page.items),
-            reply_markup=list_keyboard(
-                tuple(item.pmid for item in page.items),
-                has_more=page.has_more,
-                with_subscribe=True,
-                with_new_query=True,
-            ),
+        html = format_list(page.items)
+        markup = list_keyboard(
+            tuple(item.pmid for item in page.items),
+            has_more=page.has_more,
+            with_subscribe=True,
+            with_new_query=True,
         )
+        try:
+            await callback.message.edit_text(html, reply_markup=markup)
+            chat_id = callback.message.chat.id
+            message_id = callback.message.message_id
+        except TelegramBadRequest:
+            sent = await callback.message.answer(html, reply_markup=markup)
+            chat_id = sent.chat.id
+            message_id = sent.message_id
         await search_service.save_list_message(
             callback.from_user.id,
-            callback.message.chat.id,
-            callback.message.message_id,
+            chat_id,
+            message_id,
         )
 
 
@@ -158,6 +164,11 @@ async def on_main_menu(callback: CallbackQuery, state: FSMContext) -> None:
         START_TEXT,
         reply_markup=start_keyboard(),
     )
+
+
+async def _reply(callback: CallbackQuery, text: str) -> None:
+    if callback.message and isinstance(callback.message, Message):
+        await callback.message.answer(text)
 
 
 def _typing(bot: Bot | None, chat_id: int) -> AbstractAsyncContextManager[object]:

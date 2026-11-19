@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import threading
 from collections.abc import Awaitable, Callable
 from typing import Protocol
 
@@ -113,16 +114,20 @@ class GeminiQueryRewriter:
         self._model = settings.gemini_model
         self._stub = client
         self._sdk: OpenAI | None = None
+        self._sdk_lock = threading.Lock()
         self._to_thread = to_thread
 
     def _sdk_client(self) -> OpenAI:
-        if self._sdk is None:
-            self._sdk = OpenAI(
-                api_key=self._api_key,
-                base_url=GEMINI_BASE_URL,
-                timeout=GEMINI_TIMEOUT_SECONDS,
-            )
-        return self._sdk
+        if self._sdk is not None:
+            return self._sdk
+        with self._sdk_lock:
+            if self._sdk is None:
+                self._sdk = OpenAI(
+                    api_key=self._api_key,
+                    base_url=GEMINI_BASE_URL,
+                    timeout=GEMINI_TIMEOUT_SECONDS,
+                )
+            return self._sdk
 
     def _create_completion(self, messages: list[ChatCompletionMessageParam]) -> object:
         if self._stub is not None:

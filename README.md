@@ -76,12 +76,14 @@ docker compose --profile pubmed-bot down
 Создайте `.env` файл:
 
 ```env
-TELEGRAM_TOKEN=your_token_here
-DEEPL_API_KEY=your_key_here
+BOT_TOKEN=your_token_here
+NCBI_API_KEY=your_key_here
+NCBI_EMAIL=you@example.com
+DEEPL_AUTH_KEY=your_key_here
 GEMINI_API_KEY=your_key_here
 SQLITE_PATH=/data/pubmed.db
 USER_SEARCH_PER_MIN=10
-USER_OPEN_PER_MIN=30
+USER_OPEN_PER_MIN=20
 ```
 
 ## Разработка
@@ -109,7 +111,7 @@ pytest tests/
 
 - Приватные чаты только (игнорируются группы и каналы)
 - Защита от двойных кликов через `ProcessingBlockerMiddleware`
-- Rate limiting на поиск (10 запросов/мин) и открытие статей (30 действий/мин)
+- Rate limiting на поиск (10 запросов/мин) и открытие статей (20 действий/мин)
 - Никаких API ключей в логах и исходниках
 
 ### Оптимизация

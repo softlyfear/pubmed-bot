@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import threading
 from collections.abc import Awaitable, Callable
 from typing import Protocol
 
@@ -83,6 +84,7 @@ class DeeplTranslator:
         self._auth_key = settings.deepl_auth_key
         self._stub = client
         self._sdk: deepl.DeepLClient | None = None
+        self._sdk_lock = threading.Lock()
         self._to_thread = to_thread
 
     def _translate_sync(self, text: str, source_lang: str, target_lang: str) -> str:
@@ -124,9 +126,12 @@ class DeeplTranslator:
         return max(limit - count, 0)
 
     def _sdk_client(self) -> deepl.DeepLClient:
-        if self._sdk is None:
-            self._sdk = deepl.DeepLClient(self._auth_key)
-        return self._sdk
+        if self._sdk is not None:
+            return self._sdk
+        with self._sdk_lock:
+            if self._sdk is None:
+                self._sdk = deepl.DeepLClient(self._auth_key)
+            return self._sdk
 
     async def _invoke(self, fn: Callable[[], object]) -> object:
         if self._to_thread is None:

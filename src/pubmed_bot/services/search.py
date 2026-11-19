@@ -46,6 +46,19 @@ class _LiveFill:
     ncbi_exhausted: bool
 
 
+def _no_more_hits(
+    count: int,
+    cursor: int,
+    *,
+    window_full: bool,
+    last_in_window: bool,
+) -> bool:
+    """True when this ESearch window cannot yield another display page."""
+    if last_in_window and not window_full:
+        return True
+    return count > 0 and cursor >= count
+
+
 class SearchService:
     """Один текущий поиск на пользователя. Без Telegram."""
 
@@ -96,6 +109,7 @@ class SearchService:
                 page,
                 (),
                 fill.next_retstart,
+                has_more=False,
             )
             await self._audit_search(telegram_user_id, query_text, resolved_en)
             return SearchPage(items=(), page=page, has_more=False, empty=True, no_more=False)
@@ -115,6 +129,7 @@ class SearchService:
             page,
             items,
             fill.next_retstart,
+            has_more=not fill.ncbi_exhausted,
         )
         await self._audit_search(telegram_user_id, query_text, resolved_en)
         return SearchPage(
@@ -153,14 +168,15 @@ class SearchService:
 
     async def current_list(self, telegram_user_id: int) -> SearchPage | None:
         async with session_scope(self._session_maker) as session:
-            loaded = await SearchRepo(session).current_items(telegram_user_id)
+            loaded = await SearchRepo(session).current_page_state(telegram_user_id)
         if loaded is None:
             return None
-        items, page = loaded
+        items, page, stored_has_more = loaded
+        has_more = len(items) == PAGE_SIZE if stored_has_more is None else stored_has_more
         return SearchPage(
             items=items,
             page=page,
-            has_more=len(items) == PAGE_SIZE,
+            has_more=has_more,
             empty=not items,
             no_more=False,
         )
@@ -192,9 +208,14 @@ class SearchService:
                     live.append(pmid)
                 if len(live) == PAGE_SIZE:
                     last_in_window = index == len(result.pmids) - 1
-                    exhausted = last_in_window and not window_full
+                    exhausted = _no_more_hits(
+                        result.count,
+                        cursor,
+                        window_full=window_full,
+                        last_in_window=last_in_window,
+                    )
                     return _LiveFill(tuple(live), cursor, exhausted)
-            if not window_full:
+            if _no_more_hits(result.count, cursor, window_full=window_full, last_in_window=True):
                 exhausted = True
                 break
         return _LiveFill(tuple(live), cursor, exhausted)
@@ -207,6 +228,8 @@ class SearchService:
         page: int,
         items: tuple[ArticleListItem, ...],
         ncbi_retstart: int,
+        *,
+        has_more: bool,
     ) -> None:
         async with session_scope(self._session_maker) as session:
             await SearchRepo(session).replace(
@@ -216,6 +239,7 @@ class SearchService:
                 page=page,
                 items=items,
                 ncbi_retstart=ncbi_retstart,
+                has_more=has_more,
             )
 
     async def _audit_search(

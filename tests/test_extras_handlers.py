@@ -254,3 +254,27 @@ async def test_notes_list_empty_and_items(monkeypatch: pytest.MonkeyPatch) -> No
     start_data = [btn.callback_data for row in start_keyboard().inline_keyboard for btn in row]
     assert BTN_NOTES in start_labels
     assert "m:notes" in start_data
+
+
+@pytest.mark.asyncio
+async def test_empty_edit_keeps_existing_note(monkeypatch: pytest.MonkeyPatch) -> None:
+    from pubmed_bot.bot.handlers.extras import on_note_body
+    from pubmed_bot.bot.texts import NOTE_UNCHANGED
+
+    answered: list[str] = []
+
+    async def fake_answer(self: Message, text: str, **kwargs: object) -> None:
+        answered.append(text)
+
+    monkeypatch.setattr(Message, "answer", fake_answer)
+    notes = AsyncMock()
+    notes.get = AsyncMock(return_value="старая")
+    notes.save = AsyncMock()
+    state = AsyncMock()
+    state.get_data = AsyncMock(return_value={"note_pmid": "11"})
+    message = _message()
+    object.__setattr__(message, "text", "   ")
+    await on_note_body(message, state, notes)
+    notes.save.assert_not_awaited()
+    state.clear.assert_awaited_once()
+    assert answered == [NOTE_UNCHANGED]

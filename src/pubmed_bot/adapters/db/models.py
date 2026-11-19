@@ -76,6 +76,8 @@ class Search(Base):
     query_en: Mapped[str] = mapped_column(Text)
     page: Mapped[int] = mapped_column(Integer)
     ncbi_retstart: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    # NULL on rows created before the column existed; new searches store the real flag.
+    has_more: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     list_chat_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     list_message_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(

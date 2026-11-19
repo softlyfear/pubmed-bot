@@ -26,8 +26,13 @@ from pubmed_bot.config import get_settings
 from pubmed_bot.domain.enums import SearchSort, TranslationKind
 from pubmed_bot.domain.exceptions import PubmedUnavailable
 from pubmed_bot.domain.script import contains_cyrillic
-from pubmed_bot.services.subscriptions import SubscriptionsService, _mindate
-from pubmed_bot.workers.subscriptions import JOB_ID, SubscriptionWorker, build_scheduler
+from pubmed_bot.services.subscriptions import SubscriptionsService, SubscriptionView, _mindate
+from pubmed_bot.workers.subscriptions import (
+    JOB_ID,
+    SubscriptionWorker,
+    build_scheduler,
+    subscription_is_due,
+)
 from tests.ncbi_xml import pubmed_articles_xml
 
 
@@ -416,9 +421,76 @@ async def _seed_search_only(
             )
 
 
+def test_subscription_pages_split_before_telegram_limit() -> None:
+    from pubmed_bot.bot.handlers.subscriptions import subscription_pages
+
+    items = tuple(
+        SubscriptionView(
+            id=index,
+            telegram_user_id=7,
+            query_text="q" * 180,
+            query_en="q",
+            last_checked_at=None,
+            created_at=None,
+        )
+        for index in range(1, 40)
+    )
+    pages = subscription_pages(items)
+    assert len(pages) > 1
+    assert sum(len(ids) for _text, ids in pages) == 39
+    assert all(len(text) <= 4000 for text, _ids in pages)
+
+
 def test_mindate_is_utc_day_minus_one() -> None:
     anchor = datetime(2024, 3, 15, 12, 0, tzinfo=UTC)
     assert _mindate(anchor) == "2024/03/14"
+
+
+@pytest.mark.asyncio
+async def test_worker_deactivates_when_bot_is_blocked(sqlite_file: Path) -> None:
+    from aiogram.exceptions import TelegramForbiddenError
+    from aiogram.methods import SendMessage
+
+    engine = create_engine_from_path(sqlite_file)
+    pubmed = FakePubmed()
+    pubmed.pmids = ("300",)
+    service = _service(engine, pubmed)
+    try:
+        await _seed_user_and_search(engine, pmids=("1",))
+        await service.subscribe_current(7)
+        bot = AsyncMock()
+
+        async def blocked(*args: object, **kwargs: object) -> None:
+            raise TelegramForbiddenError(
+                method=SendMessage(chat_id=7, text="x"),
+                message="Forbidden: bot was blocked by the user",
+            )
+
+        bot.send_message = blocked
+        await SubscriptionWorker(service, bot).run_cycle()
+        assert await service.list_for_user(7) == ()
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_run_if_due_skips_subscription_created_after_slot(sqlite_file: Path) -> None:
+    engine = create_engine_from_path(sqlite_file)
+    pubmed = FakePubmed()
+    service = _service(engine, pubmed)
+    try:
+        await _seed_user_and_search(engine, pmids=("1",))
+        await service.subscribe_current(7)
+        bot = AsyncMock()
+        bot.send_message = AsyncMock()
+        worker = SubscriptionWorker(service, bot)
+        await worker.run_if_due(6, now=datetime(2024, 6, 1, 12, tzinfo=UTC))
+        bot.send_message.assert_not_awaited()
+        item = (await service.list_active())[0]
+        slot = datetime(2099, 1, 2, 6, tzinfo=UTC)
+        assert subscription_is_due(item, slot) is True
+    finally:
+        await engine.dispose()
 
 
 def test_scheduler_uses_subscription_hour_utc() -> None:

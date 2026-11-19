@@ -1,5 +1,6 @@
 """Middleware: private chat, upsert user, per-user лимит. Без сети Telegram."""
 
+import asyncio
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -274,6 +275,37 @@ async def test_new_query_while_processing_gets_wait(monkeypatch: pytest.MonkeyPa
     assert fsm.data["processing"] is False
     assert await middleware(handler, _message(text="fourth"), data) == "ok"
     assert fsm.data["interrupted"] is False
+
+
+@pytest.mark.asyncio
+async def test_concurrent_updates_do_not_both_enter(monkeypatch: pytest.MonkeyPatch) -> None:
+    answers: list[str] = []
+
+    async def fake_answer(self: Message, text: str, **kwargs: object) -> None:
+        answers.append(text)
+
+    monkeypatch.setattr(Message, "answer", fake_answer)
+    middleware = ProcessingBlockerMiddleware()
+    fsm = _FakeFsm()
+    started = asyncio.Event()
+    release = asyncio.Event()
+    calls = 0
+
+    async def handler(event: object, data: object) -> str:
+        nonlocal calls
+        calls += 1
+        started.set()
+        await release.wait()
+        return "ok"
+
+    first = asyncio.create_task(middleware(handler, _message(text="first"), {"state": fsm}))
+    await started.wait()
+    second = await middleware(handler, _message(text="second"), {"state": fsm})
+    release.set()
+    assert await first == "ok"
+    assert second is None
+    assert calls == 1
+    assert answers == [PROCESSING_TEXT]
 
 
 @pytest.mark.asyncio

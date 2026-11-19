@@ -22,6 +22,8 @@ from pubmed_bot.services.subscriptions import SubscriptionsService, Subscription
 
 logger = logging.getLogger(__name__)
 router = Router(name="subscriptions")
+_SUB_TEXT_LIMIT = 4000
+_QUERY_CLIP = 180
 
 
 @router.callback_query(F.data == CALLBACK_SUB_ADD)
@@ -54,10 +56,7 @@ async def on_sub_list(
     if not items:
         await callback.message.answer(SUB_EMPTY)
         return
-    await callback.message.answer(
-        _format_subs(items),
-        reply_markup=subscriptions_keyboard(tuple(item.id for item in items)),
-    )
+    await _send_sub_pages(callback.message, items)
 
 
 @router.callback_query(F.data.startswith(CALLBACK_SUB_OFF_PREFIX))
@@ -80,14 +79,41 @@ async def on_sub_off(
     if not items:
         await callback.message.answer(SUB_EMPTY)
         return
-    await callback.message.answer(
-        _format_subs(items),
-        reply_markup=subscriptions_keyboard(tuple(item.id for item in items)),
-    )
+    await _send_sub_pages(callback.message, items)
 
 
-def _format_subs(items: tuple[SubscriptionView, ...]) -> str:
+def subscription_pages(
+    items: tuple[SubscriptionView, ...],
+) -> tuple[tuple[str, tuple[int, ...]], ...]:
+    """Split the list so each Telegram message stays under the HTML limit."""
+    pages: list[tuple[str, tuple[int, ...]]] = []
     lines: list[str] = []
-    for index, item in enumerate(items, start=1):
-        lines.append(f"{index}. {escape(item.query_text)}")
-    return "\n".join(lines)
+    ids: list[int] = []
+    length = 0
+    local = 0
+    for item in items:
+        query = " ".join(item.query_text.split())
+        if len(query) > _QUERY_CLIP:
+            query = f"{query[: _QUERY_CLIP - 1]}…"
+        line = f"{local + 1}. {escape(query)}"
+        extra = len(line) if not lines else len(line) + 1
+        if lines and length + extra > _SUB_TEXT_LIMIT:
+            pages.append(("\n".join(lines), tuple(ids)))
+            lines = []
+            ids = []
+            length = 0
+            local = 0
+            line = f"1. {escape(query)}"
+            extra = len(line)
+        lines.append(line)
+        ids.append(item.id)
+        length += extra
+        local += 1
+    if lines:
+        pages.append(("\n".join(lines), tuple(ids)))
+    return tuple(pages)
+
+
+async def _send_sub_pages(message: Message, items: tuple[SubscriptionView, ...]) -> None:
+    for text, ids in subscription_pages(items):
+        await message.answer(text, reply_markup=subscriptions_keyboard(ids))

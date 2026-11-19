@@ -18,6 +18,9 @@ from pubmed_bot.services.rate_limit import TokenBucket
 EUTILS_BASE = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
 _MAX_RETRIES = 3
 _RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
+_MAX_BACKOFF_SECONDS = 8.0
+# GET query strings above this length are sent as POST (NCBI 414).
+_MAX_GET_CHARS = 1500
 JsonDict = dict[str, object]
 
 
@@ -165,20 +168,27 @@ class NcbiEutilsClient:
         return response.text
 
     async def _request(self, url: str, params: dict[str, str]) -> httpx.Response:
+        use_post = _query_too_long(params)
         last_error: Exception | None = None
-        for _attempt in range(_MAX_RETRIES):
+        for attempt in range(_MAX_RETRIES):
             await self._limiter.acquire()
             try:
-                response = await self._client().get(url, params=params)
+                if use_post:
+                    response = await self._client().post(url, data=params)
+                else:
+                    response = await self._client().get(url, params=params)
             except httpx.HTTPError as exc:
                 last_error = exc
-                await self._backoff(_attempt, retry_after=None)
+                await self._backoff(attempt, retry_after=None)
                 continue
             if response.status_code in _RETRY_STATUSES:
                 last_error = PubmedUnavailable(f"NCBI HTTP {response.status_code}")
-                await self._backoff(_attempt, response.headers.get("Retry-After"))
+                retry_after = response.headers.get("Retry-After")
+                await response.aclose()
+                await self._backoff(attempt, retry_after)
                 continue
             if response.status_code >= 400:
+                await response.aclose()
                 raise PubmedUnavailable(f"NCBI HTTP {response.status_code}")
             return response
         raise PubmedUnavailable("PubMed временно недоступен") from last_error
@@ -187,7 +197,15 @@ class NcbiEutilsClient:
         wait = self._retry_backoff_base * (2**attempt)
         if retry_after is not None:
             try:
-                wait = float(retry_after)
+                parsed = float(retry_after)
             except ValueError:
-                pass
-        await self._sleep(max(wait, 0.0))
+                parsed = None
+            # Reject NaN. Inf is capped below so a hostile Retry-After cannot stall NCBI.
+            if parsed is not None and parsed == parsed and parsed >= 0:
+                wait = parsed
+        await self._sleep(min(max(wait, 0.0), _MAX_BACKOFF_SECONDS))
+
+
+def _query_too_long(params: dict[str, str]) -> bool:
+    size = sum(len(key) + len(value) + 2 for key, value in params.items())
+    return size > _MAX_GET_CHARS

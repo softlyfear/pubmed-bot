@@ -11,6 +11,7 @@ from pubmed_bot.bot.keyboards import (
     CALLBACK_BACK,
     CALLBACK_OPEN_PREFIX,
     article_keyboard,
+    is_pmid,
     list_keyboard,
     start_keyboard,
 )
@@ -32,7 +33,7 @@ async def on_open(
     favorites_service: FavoritesService,
 ) -> None:
     pmid = (callback.data or "").removeprefix(CALLBACK_OPEN_PREFIX).strip()
-    if not pmid or callback.from_user is None:
+    if not is_pmid(pmid) or callback.from_user is None:
         await callback.answer()
         return
     await callback.answer()

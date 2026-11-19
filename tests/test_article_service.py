@@ -13,13 +13,14 @@ from pubmed_bot.adapters.db.session import create_engine_from_path, session_fact
 from pubmed_bot.bot.formatting import article_blocks, format_article_messages
 from pubmed_bot.bot.texts import (
     FULLTEXT_IN_FILE,
+    FULLTEXT_TEMPORARILY_UNAVAILABLE,
     FULLTEXT_UNAVAILABLE,
     TEXT_UNAVAILABLE,
     TRANSLATION_MISSING,
 )
 from pubmed_bot.config import get_settings
 from pubmed_bot.domain.enums import TranslationKind
-from pubmed_bot.domain.exceptions import TranslationUnavailable
+from pubmed_bot.domain.exceptions import PubmedUnavailable, TranslationUnavailable
 from pubmed_bot.domain.models import Article
 from pubmed_bot.services.article import ArticleService, OpenedArticle
 from pubmed_bot.services.export import render_export_txt
@@ -33,6 +34,7 @@ class FakePubmed:
         self.pubmed_xml = pubmed_xml
         self.pmc_xml = pmc_xml
         self.efetch_calls: list[tuple[tuple[str, ...], str]] = []
+        self.pmc_error = False
 
     async def esearch(self, term: str, **kwargs):
         raise AssertionError("esearch не нужен")
@@ -43,6 +45,8 @@ class FakePubmed:
     async def efetch(self, ids, *, db: str = "pubmed") -> str:
         self.efetch_calls.append((tuple(ids), db))
         if db == "pmc":
+            if self.pmc_error:
+                raise PubmedUnavailable("pmc down")
             return self.pmc_xml
         return self.pubmed_xml
 
@@ -138,6 +142,49 @@ async def test_open_translates_abstract_and_oa(sqlite_file: Path) -> None:
         assert "First paragraph" not in html
         assert "<b>Полный текст</b>" not in html
         assert FULLTEXT_IN_FILE in html
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_open_selects_requested_pmid_from_set(sqlite_file: Path) -> None:
+    xml = (
+        "<PubmedArticleSet>"
+        "<PubmedArticle><MedlineCitation><PMID>1</PMID>"
+        "<Article><ArticleTitle>One</ArticleTitle>"
+        "<Abstract><AbstractText>A</AbstractText></Abstract></Article>"
+        "</MedlineCitation></PubmedArticle>"
+        "<PubmedArticle><MedlineCitation><PMID>2</PMID>"
+        "<Article><ArticleTitle>Two</ArticleTitle>"
+        "<Abstract><AbstractText>B</AbstractText></Abstract></Article>"
+        "</MedlineCitation></PubmedArticle>"
+        "</PubmedArticleSet>"
+    )
+    service, _pubmed, _tr, engine = _article_service(sqlite_file, xml)
+    try:
+        opened = await service.open(7, "2")
+        assert opened is not None
+        assert opened.article.pmid == "2"
+        assert opened.article.title_en == "Two"
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_pmc_outage_is_not_reported_as_no_open_access(sqlite_file: Path) -> None:
+    service, pubmed, _tr, engine = _article_service(
+        sqlite_file,
+        _xml("pubmed_retracted.xml"),
+    )
+    pubmed.pmc_error = True
+    try:
+        opened = await service.open(7, "2002")
+        assert opened is not None
+        assert opened.has_oa is False
+        assert opened.oa_unavailable is True
+        html = "\n".join(format_article_messages(opened))
+        assert FULLTEXT_TEMPORARILY_UNAVAILABLE in html
+        assert FULLTEXT_UNAVAILABLE not in html
     finally:
         await engine.dispose()
 
