@@ -3,6 +3,7 @@
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from alembic import command
@@ -13,7 +14,12 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from pubmed_bot.adapters.db.models import Search, SearchResult, User
 from pubmed_bot.adapters.db.session import create_engine_from_path, session_factory, session_scope
 from pubmed_bot.adapters.ncbi.client import ESearchResult
-from pubmed_bot.adapters.ncbi.query import ENGLISH_FILTER, HASABSTRACT_FILTER
+from pubmed_bot.adapters.ncbi.query import (
+    ENGLISH_FILTER,
+    HASABSTRACT_FILTER,
+    MAX_SEARCH_WINDOWS,
+    PAGE_SIZE,
+)
 from pubmed_bot.config import get_settings
 from pubmed_bot.domain.enums import SearchSort, TranslationKind
 from pubmed_bot.domain.exceptions import (
@@ -194,6 +200,124 @@ async def test_page_two_empty_is_no_more_without_wipe(sqlite_file: Path) -> None
         async with session_factory(engine)() as session:
             count = await session.scalar(select(func.count()).select_from(SearchResult))
             assert count == 10
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.parametrize("has_first_page", [False, True])
+@pytest.mark.asyncio
+async def test_empty_batch_keeps_cursor_and_allows_continuing(
+    sqlite_file: Path, has_first_page: bool
+) -> None:
+    service, pubmed, _translation, engine = _service(sqlite_file)
+    try:
+        await _seed_user(engine)
+        start = PAGE_SIZE if has_first_page else 0
+        next_offset = start + PAGE_SIZE * MAX_SEARCH_WINDOWS
+        for offset in range(start, next_offset, PAGE_SIZE):
+            pmids = tuple(str(1000 + offset + i) for i in range(PAGE_SIZE))
+            pubmed.offset_pmids[offset] = pmids
+            pubmed.empty_abstract.update(pmids)
+        next_pmids = tuple(str(2000 + i) for i in range(PAGE_SIZE))
+        pubmed.offset_pmids[next_offset] = next_pmids
+        pubmed.total_count = next_offset + len(next_pmids)
+
+        if has_first_page:
+            first = await service.run(7, "knee")
+            await service.save_list_message(7, 7, 123)
+            batch = await service.next_page(7)
+        else:
+            first = None
+            batch = await service.run(7, "knee")
+
+        assert batch is not None
+        assert batch.empty and batch.has_more and not batch.no_more
+        assert batch.items == ()
+        assert [offset for _, offset in pubmed.esearch_calls[-MAX_SEARCH_WINDOWS:]] == list(
+            range(start, next_offset, PAGE_SIZE)
+        )
+        async with session_factory(engine)() as session:
+            saved = (await session.scalars(select(Search))).one()
+            assert saved.ncbi_retstart == next_offset
+            assert saved.has_more
+            if first is not None:
+                assert saved.page == first.page
+                assert saved.list_message_id == 123
+        current = await service.current_list(7)
+        assert current is not None
+        assert current.items == (first.items if first is not None else ())
+
+        continued = await service.next_page(7)
+        assert continued is not None
+        assert [item.pmid for item in continued.items] == list(next_pmids)
+        assert pubmed.esearch_calls[-1][1] == next_offset
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_exhausted_after_empty_batch_stops_without_losing_visible_page(
+    sqlite_file: Path,
+) -> None:
+    service, pubmed, _translation, engine = _service(sqlite_file)
+    try:
+        await _seed_user(engine)
+        first = await service.run(7, "knee")
+        await service.save_list_message(7, 7, 123)
+        for offset in range(PAGE_SIZE, PAGE_SIZE * (MAX_SEARCH_WINDOWS + 1), PAGE_SIZE):
+            pmids = tuple(str(1000 + offset + index) for index in range(PAGE_SIZE))
+            pubmed.offset_pmids[offset] = pmids
+            pubmed.empty_abstract.update(pmids)
+        pubmed.total_count = PAGE_SIZE * (MAX_SEARCH_WINDOWS + 2)
+
+        skipped = await service.next_page(7)
+        assert skipped is not None and skipped.has_more
+        exhausted = await service.next_page(7)
+        assert exhausted is not None and exhausted.no_more
+        current = await service.current_list(7)
+        assert current is not None and not current.has_more
+        assert current.items == first.items
+        assert current.page == first.page
+        async with session_factory(engine)() as session:
+            saved = (await session.scalars(select(Search))).one()
+            assert saved.list_message_id == 123
+        calls = len(pubmed.esearch_calls)
+        repeat = await service.next_page(7)
+        assert repeat is not None and repeat.no_more
+        assert len(pubmed.esearch_calls) == calls
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_empty_scan_cannot_update_replacement_search(sqlite_file: Path) -> None:
+    service, pubmed, _translation, engine = _service(sqlite_file)
+    try:
+        await _seed_user(engine)
+        await service.run(7, "knee")
+        pubmed.total_count = PAGE_SIZE * (MAX_SEARCH_WINDOWS + 2)
+        start = PAGE_SIZE
+        for offset in range(start, start + PAGE_SIZE * MAX_SEARCH_WINDOWS, PAGE_SIZE):
+            pmids = tuple(str(1000 + offset + index) for index in range(PAGE_SIZE))
+            pubmed.offset_pmids[offset] = pmids
+            pubmed.empty_abstract.update(pmids)
+
+        get_page = pubmed.esearch
+
+        async def replace_during_scan(
+            term: str, *, retstart: int, **kwargs: object
+        ) -> ESearchResult:
+            if term.startswith("(knee)") and retstart == start:
+                await service.run(7, "shoulder")
+            return await get_page(term, retstart=retstart)
+
+        with patch.object(pubmed, "esearch", side_effect=replace_during_scan):
+            assert await service.next_page(7) is None
+        async with session_factory(engine)() as session:
+            saved = (await session.scalars(select(Search))).one()
+            assert saved.query_text == "shoulder"
+            assert saved.ncbi_retstart == PAGE_SIZE
+            assert saved.has_more
     finally:
         await engine.dispose()
 

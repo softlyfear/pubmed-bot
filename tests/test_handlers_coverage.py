@@ -17,12 +17,18 @@ from pubmed_bot.bot.handlers.extras import (
 from pubmed_bot.bot.handlers.search import on_find, on_more, on_query
 from pubmed_bot.bot.handlers.start import cmd_start
 from pubmed_bot.bot.handlers.subscriptions import on_sub_list, on_sub_off, on_subscribe
-from pubmed_bot.bot.keyboards import list_keyboard, start_keyboard, subscriptions_keyboard
+from pubmed_bot.bot.keyboards import (
+    CALLBACK_MORE,
+    list_keyboard,
+    start_keyboard,
+    subscriptions_keyboard,
+)
 from pubmed_bot.bot.states import SearchStates
 from pubmed_bot.bot.texts import (
     ASK_QUERY,
     EMPTY_RESULT,
     FAV_EMPTY,
+    NO_MORE,
     NOTE_EMPTY,
     NOTE_SAVED,
     NOTE_TOO_LONG,
@@ -235,6 +241,31 @@ async def test_more_branches(monkeypatch: pytest.MonkeyPatch) -> None:
     assert edited
     assert SEARCH_PROGRESS not in answered
     assert SEARCH_PROGRESS not in edited
+
+
+@pytest.mark.asyncio
+async def test_exhausted_page_removes_only_more_button(monkeypatch: pytest.MonkeyPatch) -> None:
+    answer = AsyncMock()
+    edit = AsyncMock()
+    edit_text = AsyncMock()
+    monkeypatch.setattr(CallbackQuery, "answer", AsyncMock())
+    monkeypatch.setattr(Message, "answer", answer)
+    monkeypatch.setattr(Message, "edit_reply_markup", edit)
+    monkeypatch.setattr(Message, "edit_text", edit_text)
+    options = {"with_subscribe": True, "with_new_query": True}
+    markup = list_keyboard(("1",), has_more=True, **options)
+    message = _message().model_copy(update={"reply_markup": markup})
+    search = AsyncMock()
+    search.next_page.return_value = SearchPage(
+        items=(), page=2, has_more=False, empty=False, no_more=True
+    )
+
+    await on_more(_callback(CALLBACK_MORE, message), search)
+
+    await_args = edit.await_args_list[0]
+    assert await_args.kwargs["reply_markup"] == list_keyboard(("1",), has_more=False, **options)
+    edit_text.assert_not_awaited()
+    answer.assert_awaited_once_with(NO_MORE)
 
 
 @pytest.mark.asyncio

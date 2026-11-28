@@ -5,6 +5,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.storage.base import StorageKey
+from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import CallbackQuery, Chat, Message, User
 from alembic import command
 from alembic.config import Config
@@ -13,6 +16,7 @@ from sqlalchemy import select
 
 from pubmed_bot.adapters.db.models import User as DbUser
 from pubmed_bot.adapters.db.session import create_engine_from_path, session_factory
+from pubmed_bot.bot.handlers.start import cmd_start
 from pubmed_bot.bot.middlewares import (
     PROCESSING_TEXT,
     RATE_LIMIT_TEXT,
@@ -319,6 +323,36 @@ async def test_processing_flag_reset_after_handler_error() -> None:
     with pytest.raises(RuntimeError):
         await middleware(boom, _message(text="knee"), {"state": fsm})
     assert fsm.data["processing"] is False
+
+
+@pytest.mark.asyncio
+async def test_start_cannot_unlock_an_inflight_search(monkeypatch: pytest.MonkeyPatch) -> None:
+    answers: list[str] = []
+
+    async def answer(self: Message, text: str, **kwargs: object) -> None:
+        answers.append(text)
+
+    monkeypatch.setattr(Message, "answer", answer)
+    middleware = ProcessingBlockerMiddleware()
+    user_id = _tg_user().id
+    state = FSMContext(MemoryStorage(), StorageKey(bot_id=1, chat_id=user_id, user_id=user_id))
+    data = {"state": state}
+
+    async def new_query(event: object, data: object) -> str:
+        return "ran"
+
+    async def start(event: object, data: dict[str, object]) -> None:
+        assert isinstance(event, Message)
+        await cmd_start(event, state)
+
+    async def pending_search(event: object, data: dict[str, object]) -> None:
+        await middleware(start, _message(text="/start"), data)
+        assert await state.get_data() == {}
+        assert await middleware(new_query, _message(text="new query"), data) is None
+        assert answers[-1] == PROCESSING_TEXT
+
+    await middleware(pending_search, _callback(data="p:next"), data)
+    assert await middleware(new_query, _message(text="retry"), data) == "ran"
 
 
 def test_empty_api_keys_rejected(tmp_path: Path) -> None:

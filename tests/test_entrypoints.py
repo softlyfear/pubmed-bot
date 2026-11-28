@@ -113,7 +113,9 @@ def test_chown_tree_does_not_follow_symlinks(
 ) -> None:
     calls: list[tuple[str, bool]] = []
 
-    def fake_chown(path: object, uid: int, gid: int, follow_symlinks: bool = True) -> None:
+    def fake_chown(
+        path: str | os.PathLike[str], uid: int, gid: int, follow_symlinks: bool = True
+    ) -> None:
         calls.append((Path(path).name, follow_symlinks))
 
     monkeypatch.setattr(os, "chown", fake_chown)

@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import cast
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -194,6 +194,24 @@ class SearchRepo:
             return
         search.list_chat_id = chat_id
         search.list_message_id = message_id
+
+    async def save_scan_progress(self, previous: Search, retstart: int, *, has_more: bool) -> bool:
+        """Update only the search window that was scanned, preserving its visible results."""
+        stmt = (
+            update(Search)
+            .where(
+                Search.id == previous.id,
+                Search.user_id == previous.user_id,
+                Search.query_text == previous.query_text,
+                Search.query_en == previous.query_en,
+                Search.page == previous.page,
+                Search.ncbi_retstart == previous.ncbi_retstart,
+                Search.has_more.is_not(False),
+            )
+            .values(ncbi_retstart=retstart, has_more=has_more)
+            .returning(Search.id)
+        )
+        return await self._session.scalar(stmt) is not None
 
     async def current_items(
         self,

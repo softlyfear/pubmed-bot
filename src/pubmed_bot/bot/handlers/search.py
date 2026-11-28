@@ -28,6 +28,7 @@ from pubmed_bot.bot.texts import (
     NO_MORE,
     PUBMED_DOWN,
     QUERY_TRANSLATE_FAILED,
+    SEARCH_BATCH_EMPTY,
     SEARCH_PROGRESS,
     START_TEXT,
 )
@@ -126,10 +127,12 @@ async def on_more(callback: CallbackQuery, search_service: SearchService) -> Non
     if page is None:
         return
     if page.no_more:
+        if isinstance(callback.message, Message):
+            await _remove_more_button(callback.message)
         await _reply(callback, NO_MORE)
         return
     if page.empty:
-        await _reply(callback, EMPTY_RESULT)
+        await _reply(callback, SEARCH_BATCH_EMPTY if page.has_more else EMPTY_RESULT)
         return
     if callback.message and isinstance(callback.message, Message):
         html = format_list(page.items)
@@ -171,6 +174,22 @@ async def _reply(callback: CallbackQuery, text: str) -> None:
         await callback.message.answer(text)
 
 
+async def _remove_more_button(message: Message) -> None:
+    markup = message.reply_markup
+    if markup is None:
+        return
+    rows = [
+        [button for button in row if button.callback_data != CALLBACK_MORE]
+        for row in markup.inline_keyboard
+    ]
+    if rows != markup.inline_keyboard:
+        rows = [row for row in rows if row]
+        with suppress(TelegramBadRequest):
+            await message.edit_reply_markup(
+                reply_markup=markup.model_copy(update={"inline_keyboard": rows}) if rows else None
+            )
+
+
 def _typing(bot: Bot | None, chat_id: int) -> AbstractAsyncContextManager[object]:
     """«печатает…» в шапке чата, пока идёт поиск."""
     if bot is None:
@@ -197,8 +216,8 @@ async def _send_page(
 ) -> None:
     if page.empty or not page.items:
         await status.edit_text(
-            EMPTY_RESULT,
-            reply_markup=list_keyboard((), has_more=False, with_new_query=True),
+            SEARCH_BATCH_EMPTY if page.has_more else EMPTY_RESULT,
+            reply_markup=list_keyboard((), has_more=page.has_more, with_new_query=True),
         )
         return
     await status.edit_text(

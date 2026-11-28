@@ -10,7 +10,13 @@ from aiogram.types import InlineKeyboardMarkup
 
 from pubmed_bot.bot.factory import create_dispatcher
 from pubmed_bot.bot.handlers.search import on_find, on_query, on_text_without_find, router
-from pubmed_bot.bot.keyboards import CALLBACK_FIND, FIND_CALLBACKS, list_keyboard, start_keyboard
+from pubmed_bot.bot.keyboards import (
+    CALLBACK_FIND,
+    CALLBACK_MORE,
+    FIND_CALLBACKS,
+    list_keyboard,
+    start_keyboard,
+)
 from pubmed_bot.bot.states import NoteStates, SearchStates
 from pubmed_bot.bot.texts import (
     ASK_QUERY,
@@ -19,6 +25,7 @@ from pubmed_bot.bot.texts import (
     EMPTY_RESULT,
     NEED_FIND,
     QUERY_TRANSLATE_FAILED,
+    SEARCH_BATCH_EMPTY,
     SEARCH_PROGRESS,
     START_TEXT,
 )
@@ -275,6 +282,24 @@ async def test_empty_run_attaches_new_query_button() -> None:
         [BTN_NEW_QUERY, "Главное меню"]
     ]
     assert markup.inline_keyboard[0][0].callback_data == CALLBACK_FIND
+
+
+@pytest.mark.asyncio
+async def test_empty_batch_shows_more_button() -> None:
+    from pubmed_bot.services.search import SearchPage
+
+    message = AsyncMock()
+    message.text = "example"
+    status = AsyncMock()
+    message.answer.return_value = status
+    service = AsyncMock()
+    service.run.return_value = SearchPage(
+        items=(), page=1, empty=True, has_more=True, no_more=False
+    )
+    await on_query(message, _state(), service)
+    assert status.edit_text.await_args.args == (SEARCH_BATCH_EMPTY,)
+    markup = status.edit_text.await_args.kwargs["reply_markup"]
+    assert [button.callback_data for button in markup.inline_keyboard[0]] == [CALLBACK_MORE]
 
 
 def test_handlers_do_not_import_openai_or_deepl() -> None:

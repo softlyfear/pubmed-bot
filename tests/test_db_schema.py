@@ -1,6 +1,8 @@
 """Схема SQLite через Alembic: UNIQUE, CASCADE, WAL. Без Postgres."""
 
+import os
 from datetime import UTC, datetime
+from io import StringIO
 from pathlib import Path
 
 import pytest
@@ -235,10 +237,26 @@ async def test_wal_and_busy_timeout(sqlite_file: Path) -> None:
 
 
 def test_url_is_aiosqlite_not_postgres(tmp_path: Path) -> None:
-    url = make_sqlite_url(tmp_path / "x.db")
-    assert url.startswith("sqlite+aiosqlite:///")
-    assert "postgres" not in url
-    assert "asyncpg" not in url
+    path = tmp_path / "x.db"
+    url = make_sqlite_url(path)
+    assert url.drivername == "sqlite+aiosqlite"
+    assert url.database == path.resolve().as_posix()
+    assert not url.query
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Windows forbids '?' in filenames")
+def test_migrations_use_literal_database_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    db_path = tmp_path / "test?notes.sqlite"
+    _set_required_env(monkeypatch, db_path)
+    output = StringIO()
+    command.upgrade(Config("alembic.ini", output_buffer=output), "1f9d066a88d7", sql=True)
+    assert "CREATE TABLE users" in output.getvalue()
+    assert not db_path.exists()
+
+    _upgrade(db_path)
+    assert not (tmp_path / "test").exists()
 
 
 def test_pyproject_has_no_asyncpg() -> None:

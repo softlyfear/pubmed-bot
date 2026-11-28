@@ -4,7 +4,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from sqlalchemy import event
+from sqlalchemy import URL, event
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -13,10 +13,10 @@ from sqlalchemy.ext.asyncio import (
 )
 
 
-def make_sqlite_url(path: Path) -> str:
+def make_sqlite_url(path: Path) -> URL:
     """Собрать URL sqlite+aiosqlite из пути к файлу."""
     resolved = path.expanduser().resolve()
-    return f"sqlite+aiosqlite:///{resolved.as_posix()}"
+    return URL.create("sqlite+aiosqlite", database=resolved.as_posix())
 
 
 def _enable_sqlite_pragmas(dbapi_connection, _connection_record) -> None:

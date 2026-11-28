@@ -149,6 +149,8 @@ class ProcessingBlockerMiddleware(BaseMiddleware):
 
     def __init__(self) -> None:
         self._locks: dict[int, asyncio.Lock] = {}
+        # Commands can clear FSM data without ending an in-flight handler.
+        self._busy_users: set[int] = set()
 
     def _lock_for(self, user_id: int) -> asyncio.Lock:
         lock = self._locks.get(user_id)
@@ -170,16 +172,22 @@ class ProcessingBlockerMiddleware(BaseMiddleware):
         if context is None:
             return await handler(event, data)
         user = _telegram_user(event)
-        lock = self._lock_for(user.id) if user is not None else None
-        if lock is not None:
+        if user is not None:
+            user_id = user.id
+            lock = self._lock_for(user_id)
             async with lock:
-                rejected = await self._reject_if_busy(event, context)
+                rejected = await self._reject_if_busy(
+                    event, context, busy=user_id in self._busy_users
+                )
+                if not rejected:
+                    self._busy_users.add(user_id)
             if rejected:
                 return None
             try:
                 return await handler(event, data)
             finally:
                 async with lock:
+                    self._busy_users.remove(user_id)
                     await context.update_data({PROCESSING_KEY: False})
         rejected = await self._reject_if_busy(event, context)
         if rejected:
@@ -189,10 +197,12 @@ class ProcessingBlockerMiddleware(BaseMiddleware):
         finally:
             await context.update_data({PROCESSING_KEY: False})
 
-    async def _reject_if_busy(self, event: TelegramObject, context: Any) -> bool:
+    async def _reject_if_busy(
+        self, event: TelegramObject, context: Any, *, busy: bool = False
+    ) -> bool:
         """Set the in-progress flag, or reject when another update already holds it."""
         state_data = await context.get_data()
-        if state_data.get(PROCESSING_KEY):
+        if busy or state_data.get(PROCESSING_KEY):
             if isinstance(event, Message):
                 await context.update_data({INTERRUPTED_KEY: True})
             await _notify_processing(event, notified=bool(state_data.get(INTERRUPTED_KEY)))

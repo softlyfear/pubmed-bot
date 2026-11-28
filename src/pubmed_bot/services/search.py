@@ -7,6 +7,7 @@ from typing import Protocol
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from pubmed_bot.adapters.db.models import Search
 from pubmed_bot.adapters.db.repositories import SearchRepo
 from pubmed_bot.adapters.db.session import session_scope
 from pubmed_bot.adapters.ncbi.client import PubmedClient
@@ -81,6 +82,22 @@ class SearchService:
         query_en: str | None = None,
         retstart: int | None = None,
     ) -> SearchPage:
+        result = await self._run(
+            telegram_user_id, query_text, page, query_en=query_en, retstart=retstart
+        )
+        assert result is not None
+        return result
+
+    async def _run(
+        self,
+        telegram_user_id: int,
+        query_text: str,
+        page: int,
+        *,
+        query_en: str | None,
+        retstart: int | None,
+        previous: Search | None = None,
+    ) -> SearchPage | None:
         query_text = query_text.strip()
         try:
             resolved_en = (
@@ -99,9 +116,19 @@ class SearchService:
             await self._audit_error(telegram_user_id, query_text)
             raise
         if not fill.pmids:
+            has_more = not fill.ncbi_exhausted
             if page > 1:
+                if previous is not None:
+                    async with session_scope(self._session_maker) as session:
+                        saved = await SearchRepo(session).save_scan_progress(
+                            previous, fill.next_retstart, has_more=has_more
+                        )
+                    if not saved:
+                        return None
                 await self._audit_search(telegram_user_id, query_text, resolved_en)
-                return SearchPage(items=(), page=page, has_more=False, empty=False, no_more=True)
+                return SearchPage(
+                    items=(), page=page, has_more=has_more, empty=has_more, no_more=not has_more
+                )
             await self._replace(
                 telegram_user_id,
                 query_text,
@@ -109,10 +136,10 @@ class SearchService:
                 page,
                 (),
                 fill.next_retstart,
-                has_more=False,
+                has_more=has_more,
             )
             await self._audit_search(telegram_user_id, query_text, resolved_en)
-            return SearchPage(items=(), page=page, has_more=False, empty=True, no_more=False)
+            return SearchPage(items=(), page=page, has_more=has_more, empty=True, no_more=False)
         try:
             summary = await self._pubmed.esummary(fill.pmids)
         except PubmedUnavailable:
@@ -149,12 +176,15 @@ class SearchService:
             query_en = current.query_en
             page = current.page + 1
             retstart = current.ncbi_retstart
-        return await self.run(
+            if current.has_more is False:
+                return SearchPage(items=(), page=page, has_more=False, empty=False, no_more=True)
+        return await self._run(
             telegram_user_id,
             query_text,
             page=page,
             query_en=query_en,
             retstart=retstart,
+            previous=current,
         )
 
     async def save_list_message(
